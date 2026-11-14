@@ -483,6 +483,8 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
      const pos=ord(c.w,c.wd,c.buoi,c.tiet);const gk=lastW(c.gv);
      const pool=ALL.filter(r=>r.lop===c.lop&&!r.empty&&r.ppct>0&&r._wd!=null&&r.tuanNum!=null&&!isNgoaiPpct(r.ten)&&
        (c.somon?monKey(r.mon)===monKey(c.somon):subjCode(r.mon)===subjCode(c.mon))&&(!gk||lastW(r.gv)===gk));
+     // đổi TKB: tuần này môn đó (cùng GV) vẫn đủ số tiết như tuần trước → tiết chỉ dời sang ô khác, không thiếu
+     const soTiet=w=>pool.filter(r=>r.tuanNum===w).length;if(soTiet(c.w-1)>0&&soTiet(c.w)>=soTiet(c.w-1))return;
      let hit=null,cho=null;
      [...new Set(pool.map(r=>monKey(r.mon)))].forEach(mk=>{if(hit)return;const g=pool.filter(r=>monKey(r.mon)===mk);
        let pr=null,nx=null;g.forEach(r=>{const o=ord(r.tuanNum,r._wd,r.buoi,r.extra?r.tiet+0.5:r.tiet);if(o<pos&&(!pr||o>pr.o))pr={r,o};if(o>pos&&(!nx||o<nx.o))nx={r,o}});
