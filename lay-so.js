@@ -1,6 +1,8 @@
 (function(){
 /* Nút "Lấy sổ đầu bài" chạy trên trang vnEdu: chỉ ĐỌC sổ, không sửa gì. */
-if(window.__ksdbPanel){window.__ksdbPanel.style.display='block';return}
+var CS=document.currentScript;var BASE=CS&&CS.src?CS.src.split('lay-so.js')[0]:'https://tpk792023.github.io/kiem-tra-so-dau-bai/';
+if(window.__ksdbPanel&&document.body.contains(window.__ksdbPanel)){window.__ksdbPanel.style.display='block';return}
+if(typeof Ext==='undefined'){alert('Thầy cô mở trang vnEdu (Sổ đầu bài → Chi tiết sổ đầu bài) rồi mới bấm nút này.');return}
 var G=window.__ksdbData=window.__ksdbData||{};
 function comps(){var a=Ext.ComponentManager.all;return a.getArray?a.getArray():(a.items||[])}
 function combo(n){var l=comps().filter(function(c){return c.name===n&&c.store&&!c.isDestroyed&&c.rendered&&c.el&&c.el.dom&&document.body.contains(c.el.dom)&&c.el.dom.offsetParent});return l[l.length-1]}
@@ -43,7 +45,7 @@ function tsv(){var out=[H.join('\t')];Object.keys(G).sort().forEach(function(k){
 function copy(){var s=tsv();var ok=function(){status('Đã chép '+count()+' sổ. Sang trang Kiểm tra sổ đầu bài, bấm “Dán từ vnEdu”.')};
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(s).then(ok,fb);else fb();
   function fb(){var a=document.createElement('textarea');a.value=s;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove();ok()}}
-var CHECK_URL='__CHECK_URL__';
+var CHECK_URL=BASE;
 function send(){if(!count()){status('Chưa gom sổ nào. Bấm “Lấy sổ” trước.');return}
   var s=tsv(),w=window.open(CHECK_URL,'_blank');if(!w){status('Trình duyệt chặn mở cửa sổ mới. Thầy cô dùng nút “Chép để dán”.');return}
   status('Đang gửi sang trang kiểm tra…');var done=false;

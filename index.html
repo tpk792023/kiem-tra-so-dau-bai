@@ -82,6 +82,14 @@ mark{background:var(--warn-soft);color:var(--err);border-radius:3px;padding:0 2p
     <li>Nếu đã bấm <b>Chép để dán</b> thì quay lại đây bấm <button id="btnClip">Dán từ vnEdu</button></li>
   </ol>
   <p id="bmNote" class="muted small"></p>
+  <details><summary>Kéo nút không được? Tạo dấu trang bằng tay</summary>
+    <ol class="vn-steps small">
+      <li>Bấm <button id="btnCopyBm">Chép mã nút</button> (mã ngắn bên dưới).</li>
+      <li>Bấm chuột phải vào thanh dấu trang của Chrome → <b>Thêm trang…</b> (Add page).</li>
+      <li>Ô <b>Tên</b> gõ: <i>Lấy sổ đầu bài</i>. Ô <b>URL</b>: xoá hết rồi dán (Ctrl+V) mã vừa chép → <b>Lưu</b>.</li>
+    </ol>
+    <textarea id="bmCode" class="small" readonly style="min-height:60px"></textarea>
+  </details>
   <details><summary>Cách khác: nạp file Excel/CSV</summary>
   <div class="drop" id="drop">Kéo thả file Excel/CSV vào đây (chọn được nhiều lớp, nhiều file) hoặc <u>bấm để chọn file</u>
     <input type="file" id="file" accept=".xlsx,.xls,.csv" multiple hidden></div>
@@ -505,9 +513,10 @@ $('btnSample').onclick=()=>{
   runCheck()};
 
 /* ================= nút lấy sổ & dán ================= */
-fetch('lay-so.js?'+Date.now()).then(r=>{if(!r.ok)throw 0;return r.text()}).then(s=>{
-  s=s.replace(/\/\*[\s\S]*?\*\//g,'').replace(/\s\/\/[^\n]*$/gm,'').replace('__CHECK_URL__',location.href.split('#')[0].split('?')[0]);$('bm').href='javascript:'+encodeURIComponent(s)})
-  .catch(()=>{$('bmNote').textContent='Nút “Lấy sổ đầu bài” chỉ dùng được khi mở trang này qua mạng (GitHub Pages), không mở bằng file trên máy.'});
+const BM_CODE="javascript:(function(){var s=document.createElement('script');s.src='"+new URL('lay-so.js',location.href).href+"?'+Date.now();s.onerror=function(){alert('Kh\\u00f4ng t\\u1ea3i \\u0111\\u01b0\\u1ee3c n\\u00fat l\\u1ea5y s\\u1ed5. Ki\\u1ec3m tra m\\u1ea1ng.')};document.body.appendChild(s)})();void 0";
+$('bm').href=BM_CODE;$('bmCode').value=BM_CODE;
+if(location.protocol==='file:')$('bmNote').textContent='Nút “Lấy sổ đầu bài” chỉ dùng được khi mở trang này qua mạng (GitHub Pages), không mở bằng file trên máy.';
+$('btnCopyBm').onclick=async()=>{try{await navigator.clipboard.writeText(BM_CODE)}catch(e){$('bmCode').select();document.execCommand('copy')}$('btnCopyBm').textContent='Đã chép ✓'};
 function loadTsv(t){const aoa=t.replace(/\r/g,'').split('\n').filter(l=>l.trim()).map(l=>l.split('\t'));
   addTable('Từ vnEdu ('+new Set(aoa.slice(1).map(r=>r[0])).size+' lớp)',aoa,'');runCheck()}
 window.addEventListener('message',e=>{if(e.source!==window.opener||!e.data||e.data.type!=='ksdb-data'||typeof e.data.tsv!=='string')return;loadTsv(e.data.tsv)});
