@@ -147,7 +147,7 @@ mark{background:var(--warn-soft);color:var(--err);border-radius:3px;padding:0 2p
     <input type="text" id="fText" placeholder="Tìm…">
     <button id="btnExport">Xuất Excel</button><button id="btnPrint">In</button>
   </div>
-  <div class="tbl-wrap"><table><thead><tr><th>Mức</th><th>Lớp</th><th>Ngày</th><th>Tiết</th><th>Môn</th><th>Giáo viên</th><th>Loại</th><th>Chi tiết</th></tr></thead><tbody id="tbody"></tbody></table></div>
+  <div class="tbl-wrap"><table><thead><tr><th>Mức</th><th>Lớp</th><th>Tuần</th><th>Ngày</th><th>Tiết</th><th>Môn</th><th>Giáo viên</th><th>Loại</th><th>Chi tiết</th></tr></thead><tbody id="tbody"></tbody></table></div>
   <details style="margin-top:12px"><summary>Tổng hợp theo giáo viên</summary><div class="tbl-wrap" style="max-height:none"><table><thead><tr><th>Giáo viên</th><th>Số tiết đã ghi</th><th>Lỗi</th><th>Cần xem lại</th><th>Chủ yếu</th></tr></thead><tbody id="gvBody"></tbody></table></div></details>
 </section>
 </main>
@@ -373,10 +373,11 @@ const cleanTen=s=>String(s).replace(/^\s*(bài|tiết|chủ đề|chương|bai|t
 function bestSim(a,b){return Math.max(sim(a,b),sim(cleanTen(a),cleanTen(b)))}
 
 let ISSUES=[],STATS={};
+const tuanLb=w=>w?String(w).replace(/^tuần/,'Tuần'):'';
 const TYPES={tiet:'Thiếu tiết',tenbai:'Tên bài',nx:'Nhận xét',ct:'Chính tả',phe:'Phê sổ / ký',vang:'HS vắng',diem:'Điểm / xếp loại'};
 function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp sổ đầu bài trước nhé.');return}
   const {recs,phe,pheSeen,cn,cnSeen,ktth}=buildRecords();ISSUES=[];
-  const add=(r,type,lv,msg)=>ISSUES.push({lop:r.lop,ngay:r.day?r.day.label:'',tiet:r.tiet??'',mon:r.mon||'',gv:r.gv||'',type,lv,msg,src:r.src,rowNo:r.rowNo,sortD:r.day&&r.day.date?r.day.date.getTime():0,idx:r.idx??0});
+  const add=(r,type,lv,msg)=>ISSUES.push({lop:r.lop,tuan:tuanLb(r.wk),ngay:r.day?r.day.label:'',tiet:r.tiet??'',mon:r.mon||'',gv:r.gv||'',type,lv,msg,src:r.src,rowNo:r.rowNo,sortD:r.day&&r.day.date?r.day.date.getTime():0,idx:r.idx??0});
   const usePpct=Object.keys(PPCT).length>0;
   for(const r of recs){
     if(r.empty){if(S.empty)add(r,'tiet','err','Tiết trống: chưa ghi môn và tên bài');continue}
@@ -442,9 +443,9 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
     const mk=norm(cleanTen(main));
     ks.slice(1).forEach(k=>names[k].forEach(r=>{if(k.includes(mk)||mk.includes(k)||bestSim(r.ten,main)>=0.6)return;add(r,'tenbai','warn',`Tiết PPCT ${r.ppct} lớp ${r.lop} ghi “${r.ten}”, các lớp khác ghi “${main}”`)}))});
   // phê sổ theo tuần
-  Object.keys(pheSeen).forEach(k=>{if(!phe[k]){const [lop,wk]=k.split('|');ISSUES.push({lop,ngay:wk,tiet:'',mon:'',gv:'',type:'phe',lv:'err',msg:`BGH chưa phê sổ ${wk}`,sortD:0,idx:-1})}});
-  Object.keys(cnSeen).forEach(k=>{if(!cn[k]){const [lop,wk]=k.split('|');ISSUES.push({lop,ngay:wk,tiet:'',mon:'',gv:'',type:'phe',lv:'err',msg:`GVCN chưa nhận xét ${wk}`,sortD:0,idx:-1})}});
-  Object.entries(ktth).forEach(([k,v])=>{const n=parseInt(v,10);if(n>0){const [lop,wk]=k.split('|');ISSUES.push({lop,ngay:wk,tiet:'',mon:'',gv:'',type:'tiet',lv:'err',msg:`vnEdu báo ${n} tiết không thực hiện ${wk} ${v.replace(/^\d+\s*/,'')} — có tiết trong TKB chưa ghi sổ`,sortD:0,idx:-1})}});
+  Object.keys(pheSeen).forEach(k=>{if(!phe[k]){const [lop,wk]=k.split('|');ISSUES.push({lop,tuan:tuanLb(wk),ngay:'',tiet:'',mon:'',gv:'',type:'phe',lv:'err',msg:`BGH chưa phê sổ ${wk}`,sortD:0,idx:-1})}});
+  Object.keys(cnSeen).forEach(k=>{if(!cn[k]){const [lop,wk]=k.split('|');ISSUES.push({lop,tuan:tuanLb(wk),ngay:'',tiet:'',mon:'',gv:'',type:'phe',lv:'err',msg:`GVCN chưa nhận xét ${wk}`,sortD:0,idx:-1})}});
+  Object.entries(ktth).forEach(([k,v])=>{const n=parseInt(v,10);if(n>0){const [lop,wk]=k.split('|');ISSUES.push({lop,tuan:tuanLb(wk),ngay:'',tiet:'',mon:'',gv:'',type:'tiet',lv:'err',msg:`vnEdu báo ${n} tiết không thực hiện ${wk} ${v.replace(/^\d+\s*/,'')} — có tiết trong TKB chưa ghi sổ`,sortD:0,idx:-1})}});
   ISSUES.sort((a,b)=>a.lop.localeCompare(b.lop,'vi',{numeric:true})||a.sortD-b.sortD||a.idx-b.idx||((+a.tiet||0)-(+b.tiet||0)));
   // thống kê GV
   STATS={rows:live.length,lops:[...new Set(live.map(r=>r.lop))],gv:{}};
@@ -470,14 +471,14 @@ function showResult(){$('result').hidden=false;
 function filtered(){const l=$('fLop').value,g=$('fGv').value,lv=$('fLv').value,q=norm($('fText').value);
   return ISSUES.filter(i=>(!typeFilter||i.type===typeFilter)&&(!l||i.lop===l)&&(!g||i.gv===g)&&(!lv||i.lv===lv)&&(!q||norm(Object.values(i).join(' ')).includes(q)))}
 function renderRows(){const arr=filtered();
-  if(!ISSUES.length){$('tbody').innerHTML=`<tr><td colspan="8"><div class="ok">Sổ đầu bài không phát hiện lỗi nào. 👍</div></td></tr>`;return}
-  $('tbody').innerHTML=arr.slice(0,3000).map(i=>`<tr><td><span class="lv-${i.lv}">${i.lv==='err'?'Lỗi':'Xem lại'}</span></td><td>${esc(i.lop)}</td><td>${esc(i.ngay)}</td><td>${esc(i.tiet)}</td><td>${esc(i.mon)}</td><td>${esc(i.gv)}</td><td>${TYPES[i.type]}</td><td>${esc(i.msg).replace(/“([^”]*)”/g,'“<mark>$1</mark>”')}${i.src?`<div class="muted small">${esc(i.src)} · dòng ${i.rowNo}</div>`:''}</td></tr>`).join('')
-    +(arr.length>3000?`<tr><td colspan="8" class="muted">…còn ${arr.length-3000} dòng, dùng bộ lọc hoặc Xuất Excel để xem hết.</td></tr>`:'')
-    +(!arr.length?'<tr><td colspan="8" class="muted">Không có mục nào khớp bộ lọc.</td></tr>':'')}
+  if(!ISSUES.length){$('tbody').innerHTML=`<tr><td colspan="9"><div class="ok">Sổ đầu bài không phát hiện lỗi nào. 👍</div></td></tr>`;return}
+  $('tbody').innerHTML=arr.slice(0,3000).map(i=>`<tr><td><span class="lv-${i.lv}">${i.lv==='err'?'Lỗi':'Xem lại'}</span></td><td>${esc(i.lop)}</td><td style="white-space:nowrap">${esc(i.tuan)}</td><td>${esc(i.ngay)}</td><td>${esc(i.tiet)}</td><td>${esc(i.mon)}</td><td>${esc(i.gv)}</td><td>${TYPES[i.type]}</td><td>${esc(i.msg).replace(/“([^”]*)”/g,'“<mark>$1</mark>”')}${i.src?`<div class="muted small">${esc(i.src)} · dòng ${i.rowNo}</div>`:''}</td></tr>`).join('')
+    +(arr.length>3000?`<tr><td colspan="9" class="muted">…còn ${arr.length-3000} dòng, dùng bộ lọc hoặc Xuất Excel để xem hết.</td></tr>`:'')
+    +(!arr.length?'<tr><td colspan="9" class="muted">Không có mục nào khớp bộ lọc.</td></tr>':'')}
 ['fLop','fGv','fLv'].forEach(id=>$(id).onchange=renderRows);$('fText').oninput=renderRows;
 $('btnRun').onclick=runCheck;$('btnPrint').onclick=()=>window.print();
-$('btnExport').onclick=()=>{const arr=filtered();const ws=XLSX.utils.aoa_to_sheet([['Mức','Lớp','Ngày','Tiết','Môn','Giáo viên','Loại','Chi tiết','Nguồn','Dòng'],...arr.map(i=>[i.lv==='err'?'Lỗi':'Xem lại',i.lop,i.ngay,i.tiet,i.mon,i.gv,TYPES[i.type],i.msg,i.src||'',i.rowNo||''])]);
-  ws['!cols']=[{wch:8},{wch:7},{wch:11},{wch:5},{wch:12},{wch:20},{wch:14},{wch:80},{wch:20},{wch:6}];
+$('btnExport').onclick=()=>{const arr=filtered();const ws=XLSX.utils.aoa_to_sheet([['Mức','Lớp','Tuần','Ngày','Tiết','Môn','Giáo viên','Loại','Chi tiết','Nguồn','Dòng'],...arr.map(i=>[i.lv==='err'?'Lỗi':'Xem lại',i.lop,i.tuan,i.ngay,i.tiet,i.mon,i.gv,TYPES[i.type],i.msg,i.src||'',i.rowNo||''])]);
+  ws['!cols']=[{wch:8},{wch:7},{wch:9},{wch:11},{wch:5},{wch:12},{wch:20},{wch:14},{wch:80},{wch:20},{wch:6}];
   const ws2=XLSX.utils.aoa_to_sheet([['Giáo viên','Số tiết','Lỗi','Cần xem lại'],...Object.entries(STATS.gv).map(([g,s])=>[g,s.n,s.err,s.warn])]);
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Lỗi sổ đầu bài');XLSX.utils.book_append_sheet(wb,ws2,'Theo giáo viên');
   XLSX.writeFile(wb,'Kiem-tra-so-dau-bai.xlsx')};
