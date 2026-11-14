@@ -111,7 +111,14 @@ mark{background:var(--warn-soft);color:var(--err);border-radius:3px;padding:0 2p
 </section>
 
 <section class="card noprint">
-  <h2><span class="num">3</span> Quy định chấm</h2>
+  <h2><span class="num">3</span> Thời khoá biểu (để dò GV chưa ghi sổ)</h2>
+  <p class="muted">Nạp file TKB toàn trường như file nhà trường gửi (có cột <b>Thứ</b>, <b>Tiết</b> và các cột tên lớp 6A1, 7A2…; mỗi lớp 2 cột môn | tên GV). Tiết nào có trong TKB mà sổ để trống thì báo GV chưa ghi sổ. Tuần chưa có TKB thì phần mềm so với sổ tuần trước. Phần mềm nhớ TKB trên máy này.</p>
+  <div class="row"><span class="muted">Áp dụng từ tuần</span><input type="number" id="tkbTuan" min="1" max="52" style="width:70px"><input type="file" id="tkbFile" accept=".xls,.xlsx"></div>
+  <div class="chips" id="tkbInfo"></div>
+</section>
+
+<section class="card noprint">
+  <h2><span class="num">4</span> Quy định chấm</h2>
   <div class="grid">
     <label>Điểm tối đa mỗi tiết <input type="number" id="s_max" step="0.5"></label>
     <label>Vắng có phép trừ (điểm/HS) <input type="number" id="s_dP" step="0.5"></label>
@@ -137,7 +144,7 @@ mark{background:var(--warn-soft);color:var(--err);border-radius:3px;padding:0 2p
 </section>
 
 <section class="card" id="result" hidden>
-  <h2><span class="num">4</span> Kết quả</h2>
+  <h2><span class="num">5</span> Kết quả</h2>
   <div id="summaryText" class="muted"></div>
   <div class="stats" id="stats"></div>
   <div class="row noprint" style="margin-bottom:10px">
@@ -435,7 +442,23 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
    ALL.forEach(r=>{if(r.tuanNum==null||r.tiet==null||r.extra)return;const wd=wdOf(r);if(wd==null)return;r._wd=wd;
      const k=r.lop+'|'+r.tuanNum+'|'+wd+'|'+r.buoi+'|'+r.tiet;if(!r.empty)slot.set(k,r);else if(!slot.has(k))slot.set(k,null);
      (weeksOf[r.lop]=weeksOf[r.lop]||new Set()).add(r.tuanNum);if(!r.empty)daysWithData.add(r.tuanNum+'|'+wd)});
-   ALL.forEach(p=>{if(p.empty||p._wd==null||p.extra)return;const w=p.tuanNum+1;
+   // a) có TKB thầy nạp cho tuần đó: so với TKB
+   const fmt=d=>String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
+   const monday={};ALL.forEach(r=>{if(r.tuanNum==null||!r.day||!r.day.date||r._wd==null||monday[r.tuanNum])return;const d=new Date(r.day.date);d.setDate(d.getDate()-(r._wd-2));monday[r.tuanNum]=d});
+   const lastW=s=>{const w=norm(s).split(' ').filter(Boolean);return w[w.length-1]||''};
+   const gvFull=(lop,t)=>{const k=lastW(String(t).replace(/\(.*?\)/g,''));if(!k)return '';const a=ALL.find(r=>r.lop===lop&&r.gv&&lastW(r.gv)===k)||ALL.find(r=>r.gv&&lastW(r.gv)===k);return a?a.gv:t};
+   const doneByTkb=new Set();
+   [...new Set(recs.filter(r=>r.tuanNum!=null).map(r=>r.lop+'|'+r.tuanNum))].forEach(key=>{const [lop,ws]=key.split('|');const w=+ws;const tk=tkbFor(w);if(!tk)return;
+     const cells=tk.cells.filter(c=>c.cn===lop);if(!cells.length)return;doneByTkb.add(key);
+     cells.forEach(c=>{const wd=c.d+2,buoi=c.s==='C'?'Chiều':'Sáng',tiet=c.p+1;if(!daysWithData.has(w+'|'+wd))return;
+       if(slot.get(lop+'|'+w+'|'+wd+'|'+buoi+'|'+tiet))return;
+       if(norm(c.sub).startsWith('chao co')&&![1,2,3,4,5,6,7,8,9,10].some(t=>slot.get(lop+'|'+w+'|'+wd+'|'+buoi+'|'+t)))return; // lớp không học buổi đó
+       let ngay='';if(monday[w]){const d=new Date(monday[w]);d.setDate(d.getDate()+wd-2);ngay=fmt(d)}
+       const gv=c.t?gvFull(lop,c.t):'';tkbMiss.add(lop+'|'+ngay+'|'+buoi+'|'+tiet);
+       ISSUES.push({lop,tuan:'Tuần '+w,ngay,tiet,mon:c.sub,gv,type:'tiet',lv:'err',
+         msg:`Chưa ghi sổ tiết ${tiet} buổi ${buoi.toLowerCase()} ${wd===8?'Chủ nhật':'thứ '+wd} — theo TKB (áp dụng từ tuần ${tk.from}) là ${c.sub}${c.t?', GV '+gv:''}`,sortD:ngay?parseDay(ngay).date.getTime():0,idx:-1})})});
+   // b) chưa có TKB cho tuần đó: so với sổ tuần trước
+   ALL.forEach(p=>{if(p.empty||p._wd==null||p.extra)return;const w=p.tuanNum+1;if(doneByTkb.has(p.lop+'|'+w))return;
      if(!weeksOf[p.lop]||!weeksOf[p.lop].has(w)||!recs.some(r=>r.lop===p.lop&&r.tuanNum===w))return; // tuần sau phải là tuần đang kiểm tra
      if(!daysWithData.has(w+'|'+p._wd))return; // cả trường không ghi ngày đó: nghỉ lễ, nghỉ học
      const k=p.lop+'|'+w+'|'+p._wd+'|'+p.buoi+'|'+p.tiet;if(slot.get(k))return;
@@ -561,6 +584,43 @@ $('btnClip').onclick=async()=>{let t='';try{t=await navigator.clipboard.readText
     alert(t?'Bộ nhớ tạm chưa có sổ đầu bài. Thầy cô bấm “Chép để dán” trên vnEdu trước nhé.':'Trình duyệt không cho đọc bộ nhớ tạm. Thầy cô bấm Ctrl+V vào ô vừa mở rồi bấm “Thêm bảng đã dán”.');return}
   loadTsv(t)};
 
+
+/* ================= Thời khoá biểu ================= */
+let TKBS=store.get('tkbs',[]); // [{from, name, nLop, cells:[{cn,d,s,p,sub,t}]}]
+function tkbFor(w){let best=null;TKBS.forEach(t=>{if(t.from<=w&&(!best||t.from>best.from))best=t});return best}
+function renderTkb(){$('tkbInfo').innerHTML=TKBS.length?TKBS.slice().sort((a,b)=>a.from-b.from).map(t=>`<span class="chip">TKB từ tuần ${t.from}: ${t.nLop} lớp, ${t.cells.length} tiết · ${esc(t.name)} <a href="#" data-del="${t.from}" title="Xoá">✕</a></span>`).join(''):'<span class="muted">Chưa có TKB — phần mềm so với sổ tuần trước.</span>';
+  $('tkbInfo').querySelectorAll('[data-del]').forEach(a=>a.onclick=e=>{e.preventDefault();if(!confirm('Xoá TKB áp dụng từ tuần '+a.dataset.del+'?'))return;TKBS=TKBS.filter(t=>t.from!=a.dataset.del);store.set('tkbs',TKBS);renderTkb()})}
+function tkRows(ws){const rg=XLSX.utils.decode_range(ws['!ref']||'A1');const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false,blankrows:true});const off=rg.s.r,coff=rg.s.c;
+  for(const m of ws['!merges']||[]){const v=(rows[m.s.r-off]||[])[m.s.c-coff];if(v===undefined||v==='')continue;
+    for(let r=m.s.r;r<=m.e.r;r++)for(let c=m.s.c;c<=m.e.c;c++){const rr=rows[r-off]=rows[r-off]||[];if(rr[c-coff]===''||rr[c-coff]===undefined)rr[c-coff]=v}}
+  if(coff)rows.forEach((r,i)=>rows[i]=Array(coff).fill('').concat(r));return rows}
+function tkDay(v){const s=norm(String(v));if(!s)return null;const m=s.match(/(^|\D)([2-7])(\D|$)/);if(m)return +m[2]-2;const w={hai:0,ba:1,tu:2,nam:3,sau:4,bay:5};for(const k in w)if(new RegExp('(^|\s)'+k+'($|\s)').test(s))return w[k];return null}
+const tkSes=v=>{const s=norm(String(v));return !s?null:s.startsWith('s')?'S':s.startsWith('c')?'C':null};
+const tkSesText=t=>{t=norm(t);return /buoi sang|ca sang/.test(t)?'S':/buoi chieu|ca chieu/.test(t)?'C':null};
+const tkSesTime=v=>{const m=String(v||'').match(/(\d{1,2})\s*(h|:|g)/i);return m?(+m[1]<12?'S':'C'):null};
+function tkSplit(v){let s=String(v||'').replace(/\r/g,'').trim();if(!s||/^nghi$/.test(norm(s)))return null;let sub=s,t='';const m=s.match(/^(.*?)\s*\((.+)\)\s*$/);
+  if(m){sub=m[1];t=m[2]}else if(s.includes('\n')){const p=s.split('\n');sub=p[0];t=p.slice(1).join(' ')}else{const p=s.split(/\s+[-–—]\s+|\s*[\/|]\s*/);sub=p[0];t=p.slice(1).join(' ')}return {sub:sub.trim(),t:t.trim()}}
+const tkIsClass=v=>/^\d{1,2}\s*[a-zA-Z]\s*\d{0,2}[a-zA-Z]?$/.test(String(v).trim());
+function tkSheet(ws,name){const rows=tkRows(ws);let H=-1;
+  for(let i=0;i<Math.min(rows.length,20);i++){const r=(rows[i]||[]).map(v=>norm(String(v)));if(r.includes('tiet')&&(rows[i]||[]).some(tkIsClass)){H=i;break}}
+  if(H<0)return [];const head=rows[H],hn=head.map(v=>norm(String(v)));
+  const pc=hn.indexOf('tiet'),dc=hn.findIndex(v=>v==='thu'||v==='ngay'),sc=hn.findIndex(v=>v==='buoi'),tc=hn.findIndex(v=>v.includes('thoi gian')||v==='gio');
+  const cols=[];head.forEach((v,j)=>{if(!tkIsClass(v))return;const n=String(v).trim().toUpperCase().replace(/\s+/g,'');if(cols.length&&cols[cols.length-1].tj===j)return;
+    const nx=j+1<head.length?String(head[j+1]).trim().toUpperCase().replace(/\s+/g,''):null;const tj=nx!==null&&(nx===''||nx===n)&&j+1!==tc&&j+1!==pc?j+1:-1;cols.push({j,tj,n})});
+  const titleSes=tkSesText(rows.slice(0,H).map(r=>(r||[]).join(' ')).join(' '))||tkSesText(name);const cells=[];let d=null,s=null,lastP=0;
+  for(let i=H+1;i<rows.length;i++){const r=rows[i]||[];const p=parseInt(r[pc]);if(!p||p>10)continue;const nd=dc>=0?tkDay(r[dc]):null;if(nd!==null&&nd!==d){d=nd;s=null;lastP=0}
+    const ns=(tc>=0?tkSesTime(r[tc]):null)||(sc>=0?tkSes(r[sc]):null)||(titleSes&&(s===null||p>lastP)?titleSes:null);if(ns)s=ns;else if(s===null)s='S';else if(p<=lastP)s='C';lastP=p;if(d===null)continue;
+    for(const c of cols){let sub,t;if(c.tj>=0){sub=String(r[c.j]||'').trim();t=String(r[c.tj]||'').trim();if(!sub)continue;if(norm(t)===norm(sub))t=''}else{const v=tkSplit(r[c.j]);if(!v)continue;sub=v.sub;t=v.t}
+      if(norm(sub).startsWith('chao co'))t='';cells.push({cn:c.n,d,s,p:p-1,sub,t})}}
+  return cells}
+$('tkbFile').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;const from=parseInt($('tkbTuan').value,10);
+  if(!(from>=1&&from<=52)){alert('Thầy cô gõ số tuần bắt đầu áp dụng TKB này (VD 11) vào ô "Áp dụng từ tuần" trước, rồi chọn lại file.');return}
+  try{const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});const seen={},cells=[];
+    wb.SheetNames.forEach(n=>{const ws=wb.Sheets[n];if(!ws||!ws['!ref'])return;tkSheet(ws,n).forEach(c=>{const k=c.cn+'|'+c.d+c.s+c.p;if(seen[k])return;seen[k]=1;cells.push(c)})});
+    if(!cells.length){alert('Không đọc được TKB. File cần dòng tiêu đề có cột "Thứ", "Tiết" và các cột tên lớp (6A1, 7A2…).');return}
+    const nLop=new Set(cells.map(c=>c.cn)).size;TKBS=TKBS.filter(t=>t.from!==from);TKBS.push({from,name:f.name,nLop,cells});store.set('tkbs',TKBS);renderTkb();
+    alert(`Đã nạp TKB áp dụng từ tuần ${from}: ${nLop} lớp, ${cells.length} tiết.`);if(TABLES.length)runCheck()}catch(err){alert('Không đọc được file: '+err.message)}};
+renderTkb();
 renderTables();renderPpct();renderMap();
 </script>
 </body>
