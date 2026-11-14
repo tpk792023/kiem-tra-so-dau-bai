@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Xếp hạng cuối kì</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#f4f6fb;--card:#fff;--ink:#142039;--mut:#5d6880;--line:#dfe4ee;--pri:#0f3d8c;--h1:#fff2b3;--h2:#e3ecfa;--h3:#fde5d6}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#11151d;--card:#1a202b;--ink:#e6eaf2;--mut:#9aa5ba;--line:#2c3443;--pri:#8fb3ff;--h1:#4a4110;--h2:#22324f;--h3:#4a2c1c}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,"Segoe UI",Arial,sans-serif}
+main{max-width:1100px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:4px 0 2px;color:var(--pri)}.mut{color:var(--mut)}.small{font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:12px 0}
+h2{font-size:17px;margin:0 0 8px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button,select,input[type=text]{font:inherit;padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+button{cursor:pointer;background:var(--pri);color:#fff;border-color:var(--pri)}button.sec{background:var(--card);color:var(--pri)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.chip{background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-size:13px}
+.tbl{overflow:auto;max-height:70vh;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:14px}th,td{border-bottom:1px solid var(--line);padding:5px 8px;text-align:left;white-space:nowrap}
+th{position:sticky;top:0;background:var(--card);z-index:1}td.n{text-align:right}
+tr.h1 td{background:var(--h1);font-weight:600}tr.h2 td{background:var(--h2);font-weight:600}tr.h3 td{background:var(--h3);font-weight:600}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.tabs button{background:var(--card);color:var(--pri)}.tabs button.on{background:var(--pri);color:#fff}
+.warn{color:#b35c00}
+@media print{.noprint{display:none}.tbl{max-height:none;overflow:visible}body{background:#fff}}
+</style>
+</head>
+<body><main>
+<h1>Xếp hạng điểm đánh giá cuối kì theo khối</h1>
+<div class="mut small">Cộng điểm đánh giá cuối kì (ĐĐGck) của tất cả các môn tính bằng điểm số, xếp học sinh theo tổng điểm trong từng khối. Tô màu hạng I, II, III; bằng điểm thì cùng hạng, hạng sau tính tiếp (vd hai bạn cùng hạng I thì bạn kế tiếp là hạng II). Dữ liệu chỉ xử lý trên máy này, không gửi đi đâu. <a href="./">← Về trang kiểm tra sổ đầu bài</a></div>
+
+<section class="card noprint">
+<h2>1. Lấy điểm</h2>
+<div class="small"><b>Cách nhanh:</b> trên vnEdu bấm nút dấu trang <b>📒 Lấy sổ đầu bài</b> → phần <b>Điểm cuối kì → xếp hạng theo khối</b> → chọn học kỳ → <b>Lấy điểm và xếp hạng</b>. Trang này tự mở và nhận điểm. (Muốn xem năm học cũ thì đổi năm học ở thanh dưới của vnEdu trước.) Nếu đã bấm “Chép điểm để dán” thì bấm <button class="sec" id="dan">Dán từ vnEdu</button></div>
+<div class="small mut" style="margin-top:10px"><b>Hoặc nạp file Excel:</b></div>
+<div class="small mut">Chọn một hoặc nhiều file Excel điểm tải từ vnEdu (sổ điểm tổng hợp / bảng điểm theo lớp, có cột cuối kì “CK”, “ĐĐGck” hoặc “Cuối kì”), hoặc file theo mẫu: mỗi dòng một học sinh, cột Họ và tên, Lớp, rồi mỗi môn một cột ghi điểm cuối kì.</div>
+<div class="row" style="margin-top:8px"><input type="file" id="f" accept=".xls,.xlsx,.csv" multiple><button class="sec" id="mau">Tải file mẫu</button><button class="sec" id="xoa">Xoá dữ liệu</button></div>
+<div class="chips" id="files"></div>
+<div id="note" class="small warn"></div>
+</section>
+
+<section class="card" id="kq" hidden>
+<h2>2. Kết quả</h2>
+<div class="row noprint"><span class="mut small">Khối:</span><div class="tabs" id="tabs"></div><span style="flex:1"></span>
+<label class="small"><input type="checkbox" id="chiTop"> Chỉ hiện hạng I–III</label><button id="xls">Xuất Excel</button><button class="sec" id="in">In</button></div>
+<div id="sum" class="small mut" style="margin:6px 0"></div>
+<div class="tbl"><table><thead id="th"></thead><tbody id="tb"></tbody></table></div>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const strip=s=>String(s??'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D');
+const norm=s=>strip(s).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const LA=['','I','II','III','IV','V','VI','VII','VIII','IX','X'];
+let HS=[];      // {ten, lop, khoi, ngay, diem:{mon:so}, nguon}
+let FILES=[];   // {name, n, mons}
+let curKhoi='';
+
+const toNum=v=>{if(v==null||v==='')return null;if(typeof v==='number')return v;const s=String(v).trim().replace(',','.');return /^\d+(\.\d+)?$/.test(s)?+s:null};
+const khoiOf=lop=>{const m=String(lop).match(/^\s*(\d{1,2})/);return m?m[1]:''};
+const isLop=s=>/^\s*\d{1,2}\s*[A-Za-zĐđ]\s*\d{0,2}\s*$/.test(String(s||''))||/^\s*\d{1,2}\s*\/\s*\d{1,2}\s*$/.test(String(s||''));
+const BO_COT=/^(stt|tt|so tt|ma hs|ma hoc sinh|ma dinh danh|ho va ten|ho ten|ho|ten|ho dem|lop|ngay sinh|nam sinh|gioi tinh|nu|dan toc|ghi chu|tong|tong diem|dtb|dtbcm|tbcm|xep loai|hoc luc|hanh kiem|ren luyen|ket qua|danh hieu|hang|xep hang|so ngay nghi|nghi|ket qua hoc tap|ket qua ren luyen|diem tb)$/;
+const COT_CK=/^(ck|ddgck|dgck|ktck|cuoi ki|cuoi ky|diem cuoi ki|diem cuoi ky|kt cuoi ki|kt cuoi ky|dg cuoi ki|dg cuoi ky|ddg ck|d ck|diem ck|ck1|ck2|hk|ktck1|ktck2|ddgck1|ddgck2)$/;
+
+function lopTuTieuDe(aoa,hr,sheet,file){for(let r=0;r<hr;r++)for(const c of aoa[r]||[]){const m=String(c??'').match(/l[ớo]p\s*:?\s*(\d{1,2}\s*[A-Za-zĐđ]?\s*\d{0,2})/i);if(m&&m[1].trim().length>=2)return m[1].replace(/\s+/g,'').toUpperCase()}
+  for(const s of [sheet,file]){const m=String(s).match(/(\d{1,2}\s*[A-Za-z]\s*\d{1,2})/);if(m)return m[1].replace(/\s+/g,'').toUpperCase()}return ''}
+
+function docSheet(aoa,sheet,file){
+  // dòng tiêu đề: có "họ ... tên" (hoặc "tên học sinh")
+  let hr=-1;for(let r=0;r<Math.min(aoa.length,30);r++){const n=(aoa[r]||[]).map(norm);if(n.some(x=>/^(ho va ten|ho ten|ho va ten hoc sinh|ten hoc sinh|hoc sinh|ho ten hoc sinh)$/.test(x))||(n.includes('ho')&&n.includes('ten'))){hr=r;break}}
+  if(hr<0)return {n:0,mons:[],why:'không thấy cột “Họ và tên”'};
+  const H0=aoa[hr]||[],H1=aoa[hr+1]||[],H2=aoa[hr+2]||[];const W=Math.max(H0.length,H1.length,H2.length,...aoa.slice(hr,hr+40).map(r=>(r||[]).length));
+  // tên môn kéo ngang theo ô gộp (ô trống lấy tên bên trái)
+  const fill=row=>{const o=[];let last='';for(let c=0;c<W;c++){const v=String(row[c]??'').trim();if(v)last=v;o.push(v?v:last)}return o};
+  const F0=fill(H0),F1=fill(H1);
+  const cTen=(()=>{const n=H0.map(norm);let i=n.findIndex(x=>/^(ho va ten|ho ten|ho va ten hoc sinh|ten hoc sinh|hoc sinh|ho ten hoc sinh)$/.test(x));if(i<0){const a=n.indexOf('ho'),b=n.indexOf('ten');i=a>=0?a:b}return i})();
+  const cTen2=norm(H0[cTen])==='ho'&&norm(H0[cTen+1])==='ten'?cTen+1:-1;
+  const cLop=H0.map(norm).findIndex(x=>x==='lop');const cNs=H0.map(norm).findIndex(x=>/^(ngay sinh|ngay thang nam sinh)$/.test(x));
+  // cột cuối kì: (a) dòng phụ có CK dưới tên môn; (b) không có dòng phụ: mỗi cột là một môn
+  let cols=[],start=hr+1;
+  for(const [Hs,Fp,skip] of [[H1,F0,2],[H2,F1,3]]){const found=[];for(let c=0;c<W;c++){if(COT_CK.test(norm(Hs[c]))){const mon=String(Fp[c]||'').trim();if(mon&&!BO_COT.test(norm(mon)))found.push({c,mon})}}
+    if(found.length){cols=found;start=hr+skip;if(skip===3){/* môn ở dòng trên cùng nếu dòng 2 là nhóm */cols=found.map(o=>({c:o.c,mon:F0[o.c]&&!COT_CK.test(norm(F0[o.c]))?F0[o.c]:o.mon}))}break}}
+  if(!cols.length){for(let c=0;c<W;c++){if(c===cTen||c===cTen2||c===cLop||c===cNs)continue;const h=String(H0[c]??'').trim();if(!h||BO_COT.test(norm(h)))continue;
+      const vals=aoa.slice(hr+1,hr+60).map(r=>r&&r[c]).filter(v=>v!=null&&String(v).trim()!=='');if(vals.length&&vals.filter(v=>toNum(v)!=null).length>=vals.length*0.6)cols.push({c,mon:h})}}
+  if(!cols.length)return {n:0,mons:[],why:'không thấy cột điểm cuối kì'};
+  // gộp trùng tên môn (vd KHTN có 3 phân môn đánh giá chung): giữ cột đầu
+  const seen=new Set();cols=cols.filter(o=>{const k=norm(o.mon);if(seen.has(k))return false;seen.add(k);return true});
+  const lopChung=lopTuTieuDe(aoa,hr,sheet,file);let n=0;
+  for(let r=start;r<aoa.length;r++){const row=aoa[r]||[];let ten=String(row[cTen]??'').trim();if(cTen2>=0)ten=(ten+' '+String(row[cTen2]??'').trim()).trim();
+    if(!ten||/^\d+$/.test(ten)||/^(tong|cong|ghi chu|nguoi lap|giao vien|hieu truong)/.test(norm(ten))||ten.length<3)continue;
+    const lop=(cLop>=0?String(row[cLop]??'').replace(/\s+/g,'').toUpperCase():'')||lopChung;
+    const diem={};let co=0;cols.forEach(o=>{const v=toNum(row[o.c]);if(v!=null&&v>=0&&v<=10){diem[o.mon.replace(/\s+/g,' ').trim()]=v;co++}});
+    if(!co)continue;
+    HS.push({ten,lop,khoi:khoiOf(lop),ngay:cNs>=0?String(row[cNs]??'').trim():'',diem,nguon:file+(sheet?' / '+sheet:'')});n++}
+  return {n,mons:cols.map(o=>o.mon),lop:lopChung}}
+
+$('f').onchange=async e=>{const notes=[];for(const f of e.target.files){try{const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
+    for(const sn of wb.SheetNames){const aoa=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:''});const r=docSheet(aoa,wb.SheetNames.length>1?sn:'',f.name);
+      if(r.n)FILES.push({name:f.name+(wb.SheetNames.length>1?' / '+sn:''),n:r.n,mons:r.mons});else if(wb.SheetNames.length===1||aoa.length>5)notes.push(f.name+(wb.SheetNames.length>1?' / '+sn:'')+': '+r.why)}}
+    catch(err){notes.push(f.name+': không đọc được ('+err.message+')')}}
+  e.target.value='';const thieuLop=HS.filter(h=>!h.khoi).length;if(thieuLop)notes.push(thieuLop+' học sinh không rõ lớp (file cần cột “Lớp” hoặc ghi “Lớp: 8A1” ở đầu bảng / tên sheet).');
+  $('note').textContent=notes.join(' · ');render()};
+// điểm gửi từ nút trên vnEdu: mỗi dòng Khối, Lớp, Mã HS, Họ và tên, Ngày sinh, Môn, ĐĐGck
+function napDiemVnedu(t,nhan){const L=String(t).replace(/\r/g,'').split('\n').filter(l=>l.trim()).map(l=>l.split('\t'));if(!L.length||!/Mã HS/.test(L[0].join(' ')))return false;
+  const by=new Map();let n=0;L.slice(1).forEach(r=>{const [khoi,lop,ma,ten,ns,mon,v]=r;const d=toNum(v);const k=ma||lop+'|'+ten;
+    let h=by.get(k);if(!h){h={ten,lop,khoi:String(khoi||khoiOf(lop)),ngay:ns,diem:{},nguon:'vnEdu'};by.set(k,h)}if(d!=null&&d>=0&&d<=10){h.diem[mon]=d;n++}});
+  HS=HS.filter(h=>h.nguon!=='vnEdu');const ds=[...by.values()].filter(h=>Object.keys(h.diem).length);HS.push(...ds);
+  FILES=FILES.filter(f=>!f.vnedu);FILES.push({name:'vnEdu'+(nhan?' '+nhan:''),n:ds.length,mons:[...new Set(ds.flatMap(h=>Object.keys(h.diem)))],vnedu:1});
+  $('note').textContent=n?'':'Không có điểm cuối kì nào (học kỳ chưa kết thúc?).';render();return true}
+window.addEventListener('message',e=>{if(e.source!==window.opener||!e.data||e.data.type!=='ksdb-diem'||typeof e.data.tsv!=='string')return;
+  napDiemVnedu(e.data.tsv,e.data.nam?`năm học ${e.data.nam}-${+e.data.nam+1}, HK${e.data.hk}`:'')});
+if(window.opener)try{window.opener.postMessage('ksdb-ready','*')}catch(e){}
+$('dan').onclick=async()=>{let t='';try{t=await navigator.clipboard.readText()}catch(e){}
+  if(!t||!napDiemVnedu(t,''))alert('Bộ nhớ tạm chưa có điểm. Trên vnEdu bấm “Chép điểm để dán” trước nhé.')};
+$('xoa').onclick=()=>{HS=[];FILES=[];$('note').textContent='';render()};
+$('mau').onclick=()=>{const ws=XLSX.utils.aoa_to_sheet([['STT','Họ và tên','Lớp','Ngữ văn','Toán','Ngoại ngữ','KHTN','Lịch sử và Địa lí','GDCD','Công nghệ','Tin học'],[1,'Nguyễn Văn A','8A1',8.5,9,7.75,8,8.5,9,8,9.5],[2,'Trần Thị B','8A2',9,9.5,8.5,8.25,9,9.5,8.5,9]]);
+  ws['!cols']=[{wch:5},{wch:24},{wch:6}];const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Điểm cuối kì');XLSX.writeFile(wb,'Mau-diem-cuoi-ki.xlsx')};
+
+// xếp hạng: tổng điểm giảm dần, bằng điểm cùng hạng, hạng sau tính tiếp (1,1,2,3…)
+function xepHang(list){const a=list.map(h=>({...h,tong:Math.round(Object.values(h.diem).reduce((s,v)=>s+v,0)*100)/100,somon:Object.keys(h.diem).length})).sort((x,y)=>y.tong-x.tong||x.ten.localeCompare(y.ten,'vi'));
+  let hang=0,prev=null;a.forEach(h=>{if(h.tong!==prev){hang++;prev=h.tong}h.hang=hang});return a}
+function khoiList(){return [...new Set(HS.map(h=>h.khoi||'?'))].sort((a,b)=>(+a||99)-(+b||99))}
+function render(){$('files').innerHTML=FILES.map(f=>`<span class="chip">${esc(f.name)}: ${f.n} HS, ${f.mons.length} môn</span>`).join('');
+  if(!HS.length){$('kq').hidden=true;return}$('kq').hidden=false;const ks=khoiList();if(!ks.includes(curKhoi))curKhoi=ks[0];
+  $('tabs').innerHTML=ks.map(k=>`<button class="${k===curKhoi?'on':''}" data-k="${k}">${k==='?'?'Chưa rõ lớp':'Khối '+k}</button>`).join('');
+  $('tabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{curKhoi=b.dataset.k;render()});
+  const ds=xepHang(HS.filter(h=>(h.khoi||'?')===curKhoi));const mons=[...new Set(ds.flatMap(h=>Object.keys(h.diem)))];
+  const maxMon=Math.max(...ds.map(h=>h.somon));const thieu=ds.filter(h=>h.somon<maxMon).length;
+  const top=ds.filter(h=>h.hang<=3);
+  $('sum').innerHTML=`Khối ${esc(curKhoi)}: <b>${ds.length}</b> học sinh, ${mons.length} môn tính điểm. Hạng I–III: <b>${top.length}</b> học sinh.`+(thieu?` <span class="warn">${thieu} học sinh thiếu điểm cuối kì ở một số môn (cột “Số môn” nhỏ hơn ${maxMon}) — kiểm tra lại trước khi công bố.</span>`:'');
+  $('th').innerHTML=`<tr><th>Hạng</th><th>Họ và tên</th><th>Lớp</th><th>Tổng điểm</th><th>Số môn</th>${mons.map(m=>`<th>${esc(m)}</th>`).join('')}</tr>`;
+  const show=$('chiTop').checked?top:ds;
+  $('tb').innerHTML=show.map(h=>`<tr class="${h.hang<=3?'h'+h.hang:''}"><td>${LA[h.hang]||h.hang}</td><td>${esc(h.ten)}</td><td>${esc(h.lop)}</td><td class="n"><b>${h.tong}</b></td><td class="n${h.somon<maxMon?' warn':''}">${h.somon}</td>${mons.map(m=>`<td class="n">${h.diem[m]??''}</td>`).join('')}</tr>`).join('')}
+$('chiTop').onchange=render;$('in').onclick=()=>window.print();
+$('xls').onclick=()=>{const wb=XLSX.utils.book_new();khoiList().forEach(k=>{const ds=xepHang(HS.filter(h=>(h.khoi||'?')===k));const mons=[...new Set(ds.flatMap(h=>Object.keys(h.diem)))];
+    const aoa=[['Hạng','Họ và tên','Lớp','Tổng điểm','Số môn',...mons],...ds.map(h=>[LA[h.hang]||h.hang,h.ten,h.lop,h.tong,h.somon,...mons.map(m=>h.diem[m]??'')])];
+    const ws=XLSX.utils.aoa_to_sheet(aoa);ws['!cols']=[{wch:6},{wch:26},{wch:6}];
+    // tô màu hạng I–III (Excel mở bản .xlsx của SheetJS bản thường không giữ màu, nên ghi rõ cột Hạng)
+    XLSX.utils.book_append_sheet(wb,ws,k==='?'?'Chua ro lop':'Khoi '+k)});XLSX.writeFile(wb,'Xep-hang-cuoi-ki.xlsx')};
+render();
+</script>
+</body></html>

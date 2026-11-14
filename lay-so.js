@@ -79,7 +79,11 @@ P.innerHTML='<b style="font-size:15px;color:#0f3d8c">Lấy sổ đầu bài đ�
  '<label style="display:block;margin:4px 0"><input type="checkbox" id="kref" checked> Lấy kèm tuần trước để so thời khoá biểu (phát hiện GV chưa ghi sổ)</label>'+
  '<div style="margin:4px 0">Lớp: <select id="kl" style="max-width:150px"><option value="">Tất cả lớp</option></select></div>'+
  '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"><button id="kgo">Lấy sổ</button><button id="ksend" style="font-weight:bold">Gửi sang trang kiểm tra</button><button id="kcp">Chép để dán</button><button id="kclr">Xoá đã gom</button><button id="kstop" style="display:none">Dừng</button></div>'+
- '<div id="kst" style="margin-top:8px;color:#0f7a3d"></div>';
+ '<div id="kst" style="margin-top:8px;color:#0f7a3d"></div>'+
+ '<div style="border-top:1px solid #dfe4ee;margin-top:10px;padding-top:8px"><b style="color:#0f3d8c">Điểm cuối kì → xếp hạng theo khối</b>'+
+ '<div style="margin:4px 0">Học kỳ <select id="dhk"><option value="1">Học kỳ 1</option><option value="2">Học kỳ 2</option></select> Khối <select id="dkh"><option value="">Tất cả</option></select></div>'+
+ '<div style="display:flex;gap:6px;flex-wrap:wrap"><button id="dgo">Lấy điểm và xếp hạng</button><button id="dcp">Chép điểm để dán</button></div>'+
+ '<div id="dst" style="margin-top:6px;color:#0f7a3d"></div></div>';
 document.body.appendChild(P);
 function $(i){return P.querySelector('#'+i)}
 function status(s){$('kst').textContent=s}
@@ -88,10 +92,41 @@ if(!lc||!wc){status('Thầy cô mở mục Sổ đầu bài → Chi tiết sổ 
 else{$('kt1').value=$('kt2').value=wc.getValue();lc.store.each(function(r){var o=document.createElement('option');o.value=r.get(lc.valueField);o.textContent=r.get(lc.displayField);$('kl').appendChild(o)});
   $('kl').value=String(lc.getValue());status('Đã gom '+count()+' sổ.')}
 var stop=false;
+/* ===== điểm đánh giá cuối kì (ĐĐGck) từ Sổ điểm – chỉ đọc ===== */
+var DIEM=window.__ksdbDiem=window.__ksdbDiem||[];
+function dst(t){$('dst').textContent=t}
+function J(x){try{return typeof x==='string'?JSON.parse(x):x}catch(e){return null}}
+function ajx(u,p,m){return new Promise(function(res,rej){jQuery.ajax({url:u,data:p||{},type:m||'get',success:res,error:function(x,s){rej(s)}})})}
+var NH=window.phpviet_nam_hoc;var capNow=(combo('cap')&&combo('cap').getValue())||2;
+(capNow==1?[1,2,3,4,5]:[6,7,8,9]).forEach(function(k){var o=document.createElement('option');o.value=k;o.textContent='Khối '+k;$('dkh').appendChild(o)});
+function docCk(h,lop,khoi,mon){var th=(h.match(/<thead>([\s\S]*?)<\/thead>/)||[])[1]||'';var m=th.match(/b='(\d+)'[^>]*cn='ĐĐGck'/)||th.match(/cn='ĐĐGck'[^>]*b='(\d+)'/);if(!m)return 0;var b=m[1];
+  var tb=(h.match(/<tbody>([\s\S]*?)<\/tbody>/)||[])[1]||'';var d=document.createElement('tbody');d.innerHTML=tb.replace(/<script[\s\S]*?<\/script>/gi,'');var n=0;
+  [].forEach.call(d.querySelectorAll('tr'),function(tr){var td=tr.children;if(td.length<5)return;var sp=tr.querySelector('.input_diem[b="'+b+'"][c="1"]');var v=sp?txt(sp):'';
+    DIEM.push([khoi,lop,txt(td[1]),(txt(td[2])+' '+txt(td[3])).trim(),txt(td[4]),mon,v]);n++});return n}
+async function layDiem(){if(!window.jQuery||!NH){dst('Không đọc được năm học trên trang vnEdu.');return}stop=false;DIEM.length=0;
+  var hk=$('dhk').value,ks=$('dkh').value?[+$('dkh').value]:(capNow==1?[1,2,3,4,5]:[6,7,8,9]);$('dgo').disabled=true;$('kstop').style.display='';var lops=[];
+  for(var i=0;i<ks.length;i++){var l=J(await ajx('?call=edu.khoi_hoc.getLopByKhoix&nam_hoc='+NH,{khoi:ks[i]}));(l&&(l.data||l)||[]).forEach(function(x){if(+x.khoi===ks[i])lops.push({id:x.id,ten:x.ten,khoi:ks[i]})})}
+  var nlop=0,nmon=0;
+  for(var a=0;a<lops.length&&!stop;a++){var L=lops[a];var mons=J(await ajx('?call=edu.so_diem.getMon&nam_hoc='+NH,{lop_id:L.id,iLopId:L.id,lop_hoc_id:L.id,hoc_ky_id:hk}))||[];
+    for(var b=0;b<mons.length&&!stop;b++){dst('Năm học '+NH+'-'+(+NH+1)+', HK'+hk+': lớp '+L.ten+' ('+(a+1)+'/'+lops.length+'), môn '+mons[b].ten+'…');
+      try{var h=await ajx('?load=edu.so_diem.nhap',{winid:'ksdbdiem',nam_hoc:NH,iLopId:L.id,iKhoi:L.khoi,iMonHocId:mons[b].id,iHocKyId:hk,thang:0,muc:'',dot_diem_id:0,dot_diem_data:'',dot_id:0,dm_cua_mon_hoc:0,dm_cua_khoi_hoc:0,dm_cua_toi:0},'POST');
+        if(docCk(h,L.ten,L.khoi,mons[b].ten))nmon++}catch(e){}}
+    nlop++}
+  $('dgo').disabled=false;$('kstop').style.display='none';
+  var co=DIEM.filter(function(r){return r[6]!==''}).length;
+  dst((stop?'Đã dừng. ':'Xong! ')+nlop+' lớp, '+nmon+' sổ môn, '+co+' điểm cuối kì.'+(co?' Đang mở trang xếp hạng…':' Chưa có điểm cuối kì (học kỳ chưa kết thúc?).'));if(co)guiDiem()}
+function diemTsv(){return [['Khối','Lớp','Mã HS','Họ và tên','Ngày sinh','Môn','ĐĐGck'].join('\t')].concat(DIEM.map(function(r){return r.map(function(v){return String(v==null?'':v).replace(/[\t\r\n]+/g,' ')}).join('\t')})).join('\n')}
+function guiDiem(){var t=diemTsv(),w=window.open(BASE+'xep-hang.html','_blank');if(!w){dst('Trình duyệt chặn mở cửa sổ mới. Dùng nút “Chép điểm để dán”.');return}var done=false;
+  function on(e){if(e.source!==w||e.data!=='ksdb-ready')return;done=true;w.postMessage({type:'ksdb-diem',tsv:t,nam:NH,hk:$('dhk').value},'*');window.removeEventListener('message',on);dst('Đã gửi '+DIEM.length+' dòng điểm sang trang xếp hạng.')}
+  window.addEventListener('message',on);setTimeout(function(){if(!done){window.removeEventListener('message',on);dst('Không gửi được. Dùng nút “Chép điểm để dán”.')}},30000)}
+function chepDiem(){if(!DIEM.length){dst('Chưa lấy điểm. Bấm “Lấy điểm và xếp hạng” trước.');return}var t=diemTsv();
+  var ok=function(){dst('Đã chép '+DIEM.length+' dòng điểm. Sang trang Xếp hạng, bấm “Dán từ vnEdu”.')};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(ok,fb);else fb();
+  function fb(){var a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove();ok()}}
 $('kx').onclick=function(){P.style.display='none'};
 $('kclr').onclick=function(){for(var k in G)delete G[k];for(var q in KY)delete KY[q];status('Đã xoá. Đã gom 0 sổ.')};
 $('kstop').onclick=function(){stop=true};
-$('kcp').onclick=copy;$('ksend').onclick=send;
+$('kcp').onclick=copy;$('ksend').onclick=send;$('dgo').onclick=layDiem;$('dcp').onclick=chepDiem;
 $('kgo').onclick=async function(){if(!lc||!wc)return;stop=false;var w1=+$('kt1').value||wc.getValue(),w2=+$('kt2').value||w1;if(w2<w1){var x=w1;w1=w2;w2=x}
   var lops=$('kl').value?[$('kl').value]:lc.store.getRange().map(function(r){return r.get(lc.valueField)});
   $('kgo').disabled=true;$('kstop').style.display='';var w0=$('kref').checked&&w1>1?w1-1:w1;var n=0,tot=(w2-w0+1)*lops.length,err=0;
