@@ -378,7 +378,7 @@ function canonTen(s){let n=norm(cleanTen(s)).replace(/\btiep theo\b/g,' ').repla
 function bestSim(a,b){return Math.max(sim(a,b),sim(cleanTen(a),cleanTen(b)))}
 
 let ISSUES=[],STATS={};
-const isNgoaiPpct=t=>/\b(cung co|bo sung)\b.*\bkien thuc\b/.test(norm(t));
+const isNgoaiPpct=t=>/\b(cung co|bo sung)\b.*\bkien thuc\b|\bmore exercises?\b|\bbai tap bo sung\b/.test(norm(t));
 const tuanLb=w=>w?String(w).replace(/^tuần/,'Tuần'):'';
 const TYPES={tiet:'Thiếu tiết',tenbai:'Tên bài',nx:'Nhận xét',ct:'Chính tả',phe:'Phê sổ / ký',vang:'HS vắng',diem:'Điểm / xếp loại'};
 function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp sổ đầu bài trước nhé.');return}
@@ -392,8 +392,8 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
     if(r.hasPpct&&r.ppct==null&&r.mon)add(r,'tenbai','warn','Chưa ghi số tiết PPCT');
     // tiết củng cố / bổ sung kiến thức (ngoài PPCT) thì tiết PPCT phải ghi 0
     const ngoai=isNgoaiPpct(r.ten);
-    if(r.ppct===0&&!ngoai)add(r,'tenbai','err','Tiết PPCT ghi số 0 (chỉ tiết củng cố/bổ sung kiến thức mới ghi 0)');
-    if(ngoai&&r.ppct!=null&&r.ppct!==0)add(r,'tenbai','warn',`Tiết củng cố/bổ sung kiến thức nhưng ghi tiết PPCT ${r.ppct} (phải ghi 0)`);
+    if(r.ppct===0&&!ngoai)add(r,'tenbai','err','Tiết PPCT ghi số 0 (chỉ tiết củng cố/bổ sung kiến thức, More Exercises mới ghi 0)');
+    if(ngoai&&r.ppct!=null&&r.ppct!==0)add(r,'tenbai','warn',`Tiết củng cố/bổ sung kiến thức (More Exercises) nhưng ghi tiết PPCT ${r.ppct} (phải ghi 0)`);
     if(usePpct&&r.ten&&r.ppct&&!ngoai){const ref=ppctLookup(r.mon,r.khoi,r.ppct);
       if(ref){const sm=bestSim(r.ten,ref);const same=canonTen(r.ten)===canonTen(ref);
         const a=cleanTen(r.ten).toLowerCase(),b=cleanTen(ref).toLowerCase();const part=!same&&a.length>=6&&b.includes(a.replace(/[.;,\s]+$/,''));
