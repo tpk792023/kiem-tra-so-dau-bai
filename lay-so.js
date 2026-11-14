@@ -1,7 +1,7 @@
 (function(){
 /* Nút "Lấy sổ đầu bài" chạy trên trang vnEdu: chỉ ĐỌC sổ, không sửa gì. */
 var CS=document.currentScript;var BASE=CS&&CS.src?CS.src.split('lay-so.js')[0]:'https://tpk792023.github.io/kiem-tra-so-dau-bai/';
-var VER='2026-11-14c'; /* đổi số này mỗi lần sửa để khung cũ trên trang được thay bằng khung mới */
+var VER='2026-11-14d'; /* đổi số này mỗi lần sửa để khung cũ trên trang được thay bằng khung mới */
 if(window.__ksdbPanel&&document.body.contains(window.__ksdbPanel)){if(window.__ksdbVer===VER){window.__ksdbPanel.style.display='block';return}window.__ksdbPanel.remove()}
 window.__ksdbVer=VER;
 if(typeof Ext==='undefined'){alert('Thầy cô mở trang vnEdu (Sổ đầu bài → Chi tiết sổ đầu bài) rồi mới bấm nút này.');return}
@@ -85,7 +85,11 @@ P.innerHTML='<b style="font-size:15px;color:#0f3d8c">Lấy sổ đầu bài đ�
  '<div style="border-top:1px solid #dfe4ee;margin-top:10px;padding-top:8px"><b style="color:#0f3d8c">Điểm cuối kì → xếp hạng theo khối</b>'+
  '<div style="margin:4px 0">Học kỳ <select id="dhk"><option value="1">Học kỳ 1</option><option value="2">Học kỳ 2</option></select> Khối <select id="dkh"><option value="">Tất cả</option></select></div>'+
  '<div style="display:flex;gap:6px;flex-wrap:wrap"><button id="dgo">Lấy điểm và xếp hạng</button><button id="dsend" style="font-weight:bold">Gửi sang trang xếp hạng</button><button id="dcp">Chép điểm để dán</button></div>'+
- '<div id="dst" style="margin-top:6px;color:#0f7a3d"></div></div>';
+ '<div id="dst" style="margin-top:6px;color:#0f7a3d"></div></div>'+
+ '<div style="border-top:1px solid #dfe4ee;margin-top:10px;padding-top:8px"><b style="color:#0f3d8c">Kiểm tra chữ ký số sổ đầu bài</b>'+
+ '<div style="margin:4px 0">Tuần từ <input id="st1" style="width:40px"> đến <input id="st2" style="width:40px"> Cấp <select id="scap"><option value="2">THCS</option><option value="1">Tiểu học</option></select></div>'+
+ '<div style="display:flex;gap:6px;flex-wrap:wrap"><button id="sgo">Lấy trạng thái ký số</button><button id="ssend" style="font-weight:bold">Gửi sang trang kiểm tra ký số</button><button id="scp">Chép để dán</button></div>'+
+ '<div id="sst" style="margin-top:6px;color:#0f7a3d"></div></div>';
 document.body.appendChild(P);
 function $(i){return P.querySelector('#'+i)}
 function status(s){$('kst').textContent=s}
@@ -128,6 +132,32 @@ function chepDiem(){if(!DIEM.length){dst('Chưa lấy điểm. Bấm “Lấy đ
 $('kx').onclick=function(){P.style.display='none'};
 $('kclr').onclick=function(){for(var k in G)delete G[k];for(var q in KY)delete KY[q];status('Đã xoá. Đã gom 0 sổ.')};
 $('kstop').onclick=function(){stop=true};
+/* ===== kiểm tra chữ ký số: lấy đủ trạng thái (đã ký và chưa ký) – chỉ đọc ===== */
+var KYS=window.__ksdbKys=window.__ksdbKys||{rows:[],tuan:[]};
+function sst(t){$('sst').textContent=t}
+if(wc){$('st1').value=$('st2').value=wc.getValue()}$('scap').value=String(capNow==1?1:2);
+async function layKySoDu(){stop=false;var w1=+$('st1').value,w2=+$('st2').value||w1;if(!w1){sst('Gõ số tuần cần kiểm tra.');return}if(w2<w1){var x=w1;w1=w2;w2=x}
+  var cap=$('scap').value;KYS.rows=[];KYS.tuan=[];$('sgo').disabled=true;$('kstop').style.display='';
+  for(var w=w1;w<=w2&&!stop;w++){sst('Đang xem tuần '+w+'…');var L;
+    try{L=await aj('app.kyso.hocba.serv.hoc_ba_dien_tu.danhSachSoDiemTongHop',{object_type:33,khoi_hoc_id:0,lop_id:0,cap_hoc:cap,diem_truong_id:0,hoc_ky:w,giao_vien_id:0,trang_thai_ky:0,role:1,page:1,start:0,limit:500})}catch(e){KYS.tuan.push({tuan:w,so:0,loi:1});continue}
+    var files=L&&L.data||[];KYS.tuan.push({tuan:w,so:files.length});
+    for(var i=0;i<files.length&&!stop;i++){var f=files[i],D;sst('Tuần '+w+': lớp '+f.lop+' ('+(i+1)+'/'+files.length+')…');
+      try{D=await aj('app.kyso.hocba.serv.hoc_ba_dien_tu.danhSachKyMonPhu',{id:f.id,lop_hoc_id:f.lop_hoc_id,page:1,start:0,limit:100})}catch(e){continue}
+      var mons=(D&&D.data||[]).map(function(m){return {gv:m.full_name,mon:m.ten_mon_hoc,ky:+m.status===1?1:0,ngay:+m.status===1?(m.updated_date||m.created_date||''):''}});
+      var cn=mons.filter(function(m){return /sinh ho[aạ]t/i.test(m.mon)})[0];
+      KYS.rows.push({tuan:w,lop:f.lop,file:f.full_name,somon:f.so_mon_ky,mons:mons,gvcn:+f.gvcn===1?1:0,gvcnTen:cn?cn.gv:'',bgh:+f.bgh===1?1:0,qs:+f.quansinh===1?1:0})}}
+  $('sgo').disabled=false;$('kstop').style.display='none';
+  var chuaGoi=KYS.tuan.filter(function(t){return !t.so}).map(function(t){return t.tuan});
+  sst((stop?'Đã dừng. ':'Xong! ')+KYS.rows.length+' sổ'+(chuaGoi.length?' (tuần '+chuaGoi.join(', ')+' chưa có file – BGH chưa đóng gói)':'')+'. Bấm “Gửi sang trang kiểm tra ký số”.')}
+function kysJson(){return JSON.stringify({nam:NH,cap:$('scap').value,tuan:KYS.tuan,rows:KYS.rows})}
+function guiKySo(){if(!KYS.rows.length&&!KYS.tuan.length){sst('Chưa lấy dữ liệu. Bấm “Lấy trạng thái ký số” trước.');return}
+  var t=kysJson(),w=window.open(BASE+'ky-so.html','_blank');if(!w){sst('Trình duyệt chặn mở cửa sổ mới. Dùng nút “Chép để dán”.');return}var done=false;
+  function on(e){if(e.source!==w||e.data!=='ksdb-ready')return;done=true;w.postMessage({type:'ksdb-kyso',json:t},'*');window.removeEventListener('message',on);sst('Đã gửi '+KYS.rows.length+' sổ sang trang kiểm tra ký số.')}
+  window.addEventListener('message',on);setTimeout(function(){if(!done){window.removeEventListener('message',on);sst('Không gửi được. Dùng nút “Chép để dán”.')}},30000)}
+function chepKySo(){if(!KYS.rows.length&&!KYS.tuan.length){sst('Chưa lấy dữ liệu.');return}var t='#KYSO-DU\n'+kysJson();var ok=function(){sst('Đã chép. Sang trang Kiểm tra ký số, bấm “Dán từ vnEdu”.')};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(ok,fb);else fb();
+  function fb(){var a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove();ok()}}
+$('sgo').onclick=layKySoDu;$('ssend').onclick=guiKySo;$('scp').onclick=chepKySo;
 $('kcp').onclick=copy;$('ksend').onclick=send;$('dgo').onclick=layDiem;$('dcp').onclick=chepDiem;$('dsend').onclick=function(){if(!DIEM.length){dst('Chưa lấy điểm. Bấm “Lấy điểm và xếp hạng” trước.');return}guiDiem()};
 $('kgo').onclick=async function(){if(!lc||!wc)return;stop=false;var w1=+$('kt1').value||wc.getValue(),w2=+$('kt2').value||w1;if(w2<w1){var x=w1;w1=w2;w2=x}
   var lops=$('kl').value?[$('kl').value]:lc.store.getRange().map(function(r){return r.get(lc.valueField)});

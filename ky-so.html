@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kiểm tra ký số</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root{--bg:#f4f6fb;--card:#fff;--ink:#142039;--mut:#5d6880;--line:#dfe4ee;--pri:#0f3d8c;--err:#c62828;--errbg:#fdecec;--warn:#b35c00;--warnbg:#fff4e0;--ok:#0f7a3d;--okbg:#e6f6ec}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#11151d;--card:#1a202b;--ink:#e6eaf2;--mut:#9aa5ba;--line:#2c3443;--pri:#8fb3ff;--err:#ff8a80;--errbg:#3a1f22;--warn:#ffb74d;--warnbg:#3a2c16;--ok:#7bd99a;--okbg:#173126}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,"Segoe UI",Arial,sans-serif}
+main{max-width:1150px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:4px 0 2px;color:var(--pri)}.mut{color:var(--mut)}.small{font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:12px 0}
+h2{font-size:17px;margin:0 0 8px}.num{display:inline-flex;width:24px;height:24px;border-radius:50%;background:var(--pri);color:#fff;align-items:center;justify-content:center;font-size:13px;margin-right:6px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button,select,input[type=text]{font:inherit;padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+button{cursor:pointer;background:var(--pri);color:#fff;border-color:var(--pri)}button.sec{background:var(--card);color:var(--pri)}
+.stats{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.stat{border:1px solid var(--line);border-radius:10px;padding:8px 14px;min-width:130px;cursor:pointer;background:var(--card)}
+.stat b{display:block;font-size:24px}.stat.sel{border:2px solid var(--pri)}
+.tbl-wrap{overflow:auto;max-height:65vh;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:14px}th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+th{position:sticky;top:0;background:var(--card);z-index:1}td.n{text-align:right}
+.lv-err{background:var(--errbg);color:var(--err);border-radius:6px;padding:1px 8px;font-weight:600;white-space:nowrap}
+.lv-warn{background:var(--warnbg);color:var(--warn);border-radius:6px;padding:1px 8px;font-weight:600;white-space:nowrap}
+.lv-ok{background:var(--okbg);color:var(--ok);border-radius:6px;padding:1px 8px;font-weight:600;white-space:nowrap}
+details summary{cursor:pointer;font-weight:600;margin:4px 0}
+.bar{height:8px;background:var(--line);border-radius:4px;min-width:80px;overflow:hidden}.bar i{display:block;height:100%;background:var(--ok)}
+@media print{.noprint{display:none}.tbl-wrap{max-height:none;overflow:visible}body{background:#fff}details{display:block}details>*{display:block}}
+</style>
+</head>
+<body><main>
+<h1>Kiểm tra chữ ký số sổ đầu bài</h1>
+<div class="mut small">Thống kê ai đã ký, ai chưa ký số sổ đầu bài (mục Ký số PDF trên vnEdu) theo tuần, lớp, giáo viên. Chỉ đọc, không ký hay sửa gì trên vnEdu. <a href="./">← Kiểm tra sổ đầu bài</a> · <a href="xep-hang.html">Xếp hạng cuối kì</a></div>
+
+<section class="card noprint">
+<h2><span class="num">1</span>Lấy trạng thái ký số từ vnEdu</h2>
+<div class="small">Trên vnEdu bấm nút dấu trang <b>📒 Lấy sổ đầu bài</b> → phần <b>Kiểm tra chữ ký số sổ đầu bài</b> → gõ tuần từ… đến…, chọn cấp → <b>Lấy trạng thái ký số</b> → <b>Gửi sang trang kiểm tra ký số</b>. Trang này tự mở và nhận dữ liệu. Nếu đã bấm “Chép để dán” thì bấm <button class="sec" id="dan">Dán từ vnEdu</button></div>
+<div id="nguon" class="small mut" style="margin-top:6px"></div>
+</section>
+
+<section class="card" id="result" hidden>
+<h2><span class="num">2</span>Kết quả</h2>
+<div id="summaryText" class="mut"></div>
+<div class="stats" id="stats"></div>
+<div class="row noprint" style="margin-bottom:8px">
+  <select id="fTuan"><option value="">Tất cả tuần</option></select>
+  <select id="fLop"><option value="">Tất cả lớp</option></select>
+  <select id="fGv"><option value="">Tất cả giáo viên</option></select>
+  <select id="fVt"><option value="">Mọi vai trò</option><option>GVBM</option><option>GVCN</option><option>BGH</option></select>
+  <select id="fTt"><option value="chua">Chưa ký</option><option value="ky">Đã ký</option><option value="">Tất cả</option></select>
+  <input type="text" id="fText" placeholder="Tìm…">
+  <button id="btnXls">Xuất Excel</button><button id="btnWord" title="Chọn 1 giáo viên: 1 file Word. Tất cả: file nén, mỗi giáo viên 1 file">Xuất Word gửi GV</button><button class="sec" id="btnIn">In</button>
+</div>
+<div class="row noprint small mut" style="margin:-2px 0 10px">Tiêu đề / phiếu: tên trường <input type="text" id="wTruong" style="width:220px"> người kiểm tra <input type="text" id="wNguoi" style="width:170px"> chức vụ <input type="text" id="wChucVu" style="width:130px"> hạn ký <input type="text" id="wHan" style="width:100px" placeholder="20/11/2026"></div>
+<div class="tbl-wrap"><table><thead><tr><th>Trạng thái</th><th>Tuần</th><th>Lớp</th><th>Vai trò</th><th>Giáo viên</th><th>Môn</th><th>Ghi chú</th></tr></thead><tbody id="tbody"></tbody></table></div>
+<details style="margin-top:12px" open><summary>Tổng hợp theo giáo viên</summary><div class="tbl-wrap" style="max-height:none"><table><thead><tr><th>Giáo viên</th><th>Phải ký</th><th>Đã ký</th><th>Chưa ký</th><th>Tỉ lệ đã ký</th><th>Lớp/tuần còn thiếu</th></tr></thead><tbody id="gvBody"></tbody></table></div></details>
+<details style="margin-top:12px"><summary>Thống kê theo tuần</summary><div class="tbl-wrap" style="max-height:none"><table><thead><tr><th>Tuần</th><th>Số sổ</th><th>GVBM đã ký / phải ký</th><th>GVCN đã ký</th><th>BGH đã ký</th><th>Sổ ký đủ</th><th>Ghi chú</th></tr></thead><tbody id="tuanBody"></tbody></table></div></details>
+<details style="margin-top:12px"><summary>Thống kê theo lớp</summary><div class="tbl-wrap" style="max-height:none"><table><thead><tr><th>Lớp</th><th>GVCN</th><th>Số tuần</th><th>GVBM đã ký / phải ký</th><th>GVCN đã ký</th><th>BGH đã ký</th><th>Sổ ký đủ</th></tr></thead><tbody id="lopBody"></tbody></table></div></details>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const strip=s=>String(s??'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D');
+const norm=s=>strip(s).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+const cmpLop=(a,b)=>String(a).localeCompare(String(b),'vi',{numeric:true});
+let DATA=null,ITEMS=[],statFilter='';
+
+/* mỗi sổ (lớp × tuần) sinh các mục: GVBM theo môn, GVCN, BGH (ký theo thứ tự GVBM → GVCN → BGH) */
+function build(){ITEMS=[];if(!DATA)return;
+  DATA.rows.forEach(f=>{const du=f.mons.length&&f.mons.every(m=>m.ky);
+    f.mons.forEach(m=>ITEMS.push({tuan:f.tuan,lop:f.lop,vt:'GVBM',gv:m.gv,mon:m.mon,ky:m.ky,ngay:m.ngay,lv:m.ky?'ok':'err',note:m.ky&&m.ngay?'Ký lúc '+m.ngay:''}));
+    ITEMS.push({tuan:f.tuan,lop:f.lop,vt:'GVCN',gv:f.gvcnTen||'(GVCN)',mon:'',ky:f.gvcn,lv:f.gvcn?'ok':(du?'err':'warn'),note:f.gvcn?'':(du?'GVBM đã ký đủ, chờ GVCN ký':`Chờ GVBM ký đủ (${f.somon||''})`)});
+    ITEMS.push({tuan:f.tuan,lop:f.lop,vt:'BGH',gv:'Ban giám hiệu',mon:'',ky:f.bgh,lv:f.bgh?'ok':(f.gvcn?'err':'warn'),note:f.bgh?'':(f.gvcn?'GVCN đã ký, chờ BGH ký':'Chờ GVCN ký')})});
+  ITEMS.sort((a,b)=>a.tuan-b.tuan||cmpLop(a.lop,b.lop)||['GVBM','GVCN','BGH'].indexOf(a.vt)-['GVBM','GVCN','BGH'].indexOf(b.vt)||a.mon.localeCompare(b.mon,'vi'))}
+function load(json){let o;try{o=typeof json==='string'?JSON.parse(json):json}catch(e){alert('Dữ liệu không đúng.');return}if(!o||!Array.isArray(o.rows)){alert('Dữ liệu không đúng.');return}
+  DATA=o;build();const ws=o.tuan.map(t=>t.tuan);$('nguon').textContent=`Đã nhận: năm học ${o.nam}-${+o.nam+1}, ${o.cap==1?'Tiểu học':'THCS'}, tuần ${ws.length?Math.min(...ws)+'–'+Math.max(...ws):''}, ${o.rows.length} sổ.`;show()}
+window.addEventListener('message',e=>{if(e.source!==window.opener||!e.data||e.data.type!=='ksdb-kyso'||typeof e.data.json!=='string')return;load(e.data.json)});
+if(window.opener)try{window.opener.postMessage('ksdb-ready','*')}catch(e){}
+$('dan').onclick=async()=>{let t='';try{t=await navigator.clipboard.readText()}catch(e){}
+  if(!t||!t.startsWith('#KYSO-DU')){alert('Bộ nhớ tạm chưa có dữ liệu ký số. Trên vnEdu bấm “Chép để dán” ở phần Kiểm tra chữ ký số trước nhé.');return}load(t.slice(t.indexOf('\n')+1))};
+
+const pct=(a,b)=>b?Math.round(a*1000/b)/10:0;
+function filtered(){const t=$('fTuan').value,l=$('fLop').value,g=$('fGv').value,v=$('fVt').value,tt=$('fTt').value,q=norm($('fText').value);
+  return ITEMS.filter(i=>(!t||String(i.tuan)===t)&&(!l||i.lop===l)&&(!g||i.gv===g)&&(!v||i.vt===v)&&(!tt||(tt==='ky'?i.ky:!i.ky))&&(!statFilter||i.vt===statFilter)&&(!q||norm([i.lop,i.gv,i.mon,i.vt,i.note].join(' ')).includes(q)))}
+function tongHop(){const gv={},tuan={},lop={};
+  ITEMS.forEach(i=>{if(i.vt==='GVBM'){const g=gv[i.gv]=gv[i.gv]||{n:0,ky:0,thieu:[]};g.n++;if(i.ky)g.ky++;else g.thieu.push(i.lop+' T'+i.tuan)}
+    if(i.vt==='GVCN'&&i.gv!=='(GVCN)'&&i.lv!=='warn'){/* chưa tới lượt GVCN thì chưa tính */const g=gv[i.gv+' (GVCN)']=gv[i.gv+' (GVCN)']||{n:0,ky:0,thieu:[]};g.n++;if(i.ky)g.ky++;else if(i.lv==='err')g.thieu.push(i.lop+' T'+i.tuan)}});
+  (DATA?DATA.rows:[]).forEach(f=>{const du=f.mons.length&&f.mons.every(m=>m.ky);const full=du&&f.gvcn&&f.bgh;
+    for(const [M,k] of [[tuan,f.tuan],[lop,f.lop]]){const o=M[k]=M[k]||{so:0,bm:0,bmky:0,cn:0,bgh:0,du:0,cnTen:f.gvcnTen,tuans:new Set()};o.so++;o.bm+=f.mons.length;o.bmky+=f.mons.filter(m=>m.ky).length;o.cn+=f.gvcn;o.bgh+=f.bgh;o.du+=full?1:0;o.tuans.add(f.tuan);if(!o.cnTen)o.cnTen=f.gvcnTen}});
+  return {gv,tuan,lop}}
+function show(){$('result').hidden=false;const th=tongHop();
+  const chua=ITEMS.filter(i=>!i.ky),bm=ITEMS.filter(i=>i.vt==='GVBM'),bmKy=bm.filter(i=>i.ky).length;
+  const cnC=ITEMS.filter(i=>i.vt==='GVCN'&&i.lv==='err').length,bghC=ITEMS.filter(i=>i.vt==='BGH'&&i.lv==='err').length;
+  const chuaGoi=(DATA.tuan||[]).filter(t=>!t.so).map(t=>t.tuan);
+  $('summaryText').innerHTML=`Đã xem <b>${DATA.rows.length}</b> sổ (lớp × tuần). GVBM đã ký <b>${bmKy}/${bm.length}</b> lượt (${pct(bmKy,bm.length)}%). Còn <b style="color:var(--err)">${bm.length-bmKy}</b> lượt GVBM chưa ký, <b style="color:var(--err)">${cnC}</b> sổ GVCN chưa ký (GVBM đã đủ), <b style="color:var(--err)">${bghC}</b> sổ BGH chưa ký (GVCN đã ký).`+(chuaGoi.length?` <span style="color:var(--warn)">Tuần ${chuaGoi.join(', ')} chưa có file ký số (BGH chưa đóng gói).</span>`:'');
+  const st=[['','Tất cả mục chưa ký',chua.length],['GVBM','GVBM chưa ký',bm.length-bmKy],['GVCN','GVCN chưa ký',ITEMS.filter(i=>i.vt==='GVCN'&&!i.ky).length],['BGH','BGH chưa ký',ITEMS.filter(i=>i.vt==='BGH'&&!i.ky).length]];
+  $('stats').innerHTML=st.map(([k,t,n])=>`<div class="stat${statFilter===k?' sel':''}" data-k="${k}"><b>${n}</b>${t}</div>`).join('')+`<div class="stat" style="cursor:default"><b>${pct(bmKy,bm.length)}%</b>GVBM đã ký</div>`;
+  $('stats').querySelectorAll('.stat[data-k]').forEach(d=>d.onclick=()=>{statFilter=d.dataset.k;show()});
+  const fill=(id,vals,first,lab)=>{const cur=$(id).value;$(id).innerHTML=`<option value="">${first}</option>`+vals.map(v=>`<option value="${esc(v)}"${String(v)===cur?' selected':''}>${esc(lab?lab(v):v)}</option>`).join('')};
+  fill('fTuan',[...new Set(ITEMS.map(i=>i.tuan))].sort((a,b)=>a-b),'Tất cả tuần',v=>'Tuần '+v);
+  fill('fLop',[...new Set(ITEMS.map(i=>i.lop))].sort(cmpLop),'Tất cả lớp');
+  fill('fGv',[...new Set(ITEMS.map(i=>i.gv))].sort((a,b)=>a.localeCompare(b,'vi')),'Tất cả giáo viên');
+  renderRows();
+  $('gvBody').innerHTML=Object.entries(th.gv).sort((a,b)=>(b[1].n-b[1].ky)-(a[1].n-a[1].ky)||a[0].localeCompare(b[0],'vi')).map(([g,o])=>`<tr><td>${esc(g)}</td><td class="n">${o.n}</td><td class="n">${o.ky}</td><td class="n">${o.n-o.ky?'<span class="lv-err">'+(o.n-o.ky)+'</span>':'0'}</td><td><div class="row" style="gap:6px"><div class="bar"><i style="width:${pct(o.ky,o.n)}%"></i></div>${pct(o.ky,o.n)}%</div></td><td class="small">${esc(o.thieu.slice(0,12).join(', '))}${o.thieu.length>12?' …':''}</td></tr>`).join('');
+  $('tuanBody').innerHTML=Object.entries(th.tuan).sort((a,b)=>a[0]-b[0]).map(([t,o])=>`<tr><td>Tuần ${t}</td><td class="n">${o.so}</td><td class="n">${o.bmky}/${o.bm} (${pct(o.bmky,o.bm)}%)</td><td class="n">${o.cn}/${o.so}</td><td class="n">${o.bgh}/${o.so}</td><td class="n">${o.du}/${o.so}</td><td></td></tr>`).join('')
+    +chuaGoi.map(t=>`<tr><td>Tuần ${t}</td><td class="n">0</td><td colspan="4"></td><td class="small" style="color:var(--warn)">Chưa có file ký số (BGH chưa đóng gói)</td></tr>`).join('');
+  $('lopBody').innerHTML=Object.entries(th.lop).sort((a,b)=>cmpLop(a[0],b[0])).map(([l,o])=>`<tr><td>${esc(l)}</td><td>${esc(o.cnTen||'')}</td><td class="n">${o.tuans.size}</td><td class="n">${o.bmky}/${o.bm} (${pct(o.bmky,o.bm)}%)</td><td class="n">${o.cn}/${o.so}</td><td class="n">${o.bgh}/${o.so}</td><td class="n">${o.du}/${o.so}</td></tr>`).join('');
+  $('result').scrollIntoView({behavior:'smooth'})}
+const LV={ok:['lv-ok','Đã ký'],err:['lv-err','Chưa ký'],warn:['lv-warn','Chờ lượt']};
+function renderRows(){const arr=filtered();
+  $('tbody').innerHTML=arr.slice(0,3000).map(i=>`<tr><td><span class="${LV[i.lv][0]}">${LV[i.lv][1]}</span></td><td>Tuần ${i.tuan}</td><td>${esc(i.lop)}</td><td>${i.vt}</td><td>${esc(i.gv)}</td><td>${esc(i.mon)}</td><td class="small">${esc(i.note)}</td></tr>`).join('')
+    +(arr.length>3000?`<tr><td colspan="7" class="mut">…còn ${arr.length-3000} dòng, dùng bộ lọc hoặc Xuất Excel.</td></tr>`:'')+(!arr.length?'<tr><td colspan="7" class="mut">Không có mục nào khớp bộ lọc.</td></tr>':'')}
+['fTuan','fLop','fGv','fVt','fTt'].forEach(id=>$(id).onchange=renderRows);$('fText').oninput=renderRows;$('btnIn').onclick=()=>window.print();
+
+// ô tiêu đề / phiếu (lưu trên máy)
+const KEYS=['wTruong','wNguoi','wChucVu','wHan'];(()=>{let o={};try{o=JSON.parse(localStorage.getItem('ks_tieude')||'{}')}catch(e){}
+  KEYS.forEach(k=>{$(k).value=o[k]??(k==='wTruong'?'TRƯỜNG TH & THCS ĐA PHƯỚC':'');$(k).onchange=()=>{const v={};KEYS.forEach(x=>v[x]=$(x).value.trim());try{localStorage.setItem('ks_tieude',JSON.stringify(v))}catch(e){}}})})();
+const tuanTxt=()=>{const ws=[...new Set(ITEMS.map(i=>i.tuan))].sort((a,b)=>a-b);return ws.length?(ws.length>1?`Từ tuần ${ws[0]} đến tuần ${ws[ws.length-1]}`:`Tuần ${ws[0]}`):''};
+const namTxt=()=>DATA?`${DATA.nam}-${+DATA.nam+1}`:'';
+function taiFile(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000)}
+
+/* Excel: tiêu đề, đóng khung, tô màu */
+$('btnXls').onclick=async()=>{if(!DATA)return;if(typeof ExcelJS==='undefined'){alert('Chưa tải được thư viện Excel, kiểm tra mạng rồi bấm lại.');return}
+  const wb=new ExcelJS.Workbook(),th=tongHop();const vien={top:{style:'thin'},left:{style:'thin'},bottom:{style:'thin'},right:{style:'thin'}};
+  const FILL=c=>({type:'pattern',pattern:'solid',fgColor:{argb:c}});
+  function sheet(name,title,H,rows,widths,colorRow){const ws=wb.addWorksheet(name,{pageSetup:{orientation:'landscape',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0},views:[{state:'frozen',ySplit:6}]});
+    const n=H.length;ws.mergeCells(1,1,1,Math.max(2,Math.ceil(n/2)));ws.getCell(1,1).value=$('wTruong').value.trim().toUpperCase();ws.getCell(1,1).font={bold:true,size:12};ws.getCell(1,1).alignment={horizontal:'center'};
+    ws.mergeCells(3,1,3,n);ws.getCell(3,1).value=title;ws.getCell(3,1).font={bold:true,size:14};ws.getCell(3,1).alignment={horizontal:'center'};
+    ws.mergeCells(4,1,4,n);ws.getCell(4,1).value=[tuanTxt(),namTxt()?'Năm học '+namTxt():''].filter(Boolean).join(' – ');ws.getCell(4,1).font={italic:true};ws.getCell(4,1).alignment={horizontal:'center'};
+    const hr=ws.getRow(6);H.forEach((v,i)=>{const c=hr.getCell(i+1);c.value=v;c.font={bold:true};c.alignment={horizontal:'center',vertical:'middle',wrapText:true};c.border=vien;c.fill=FILL('FFD9E1F2')});hr.height=32;
+    rows.forEach((r,k)=>{const row=ws.getRow(7+k);const col=colorRow?colorRow(r,k):null;r.forEach((v,j)=>{const c=row.getCell(j+1);c.value=v;c.border=vien;c.alignment={vertical:'top',wrapText:true,horizontal:typeof v==='number'?'center':'left'};if(col)c.fill=FILL(col)})});
+    widths.forEach((w,i)=>ws.getColumn(i+1).width=w);return ws}
+  const chua=ITEMS.filter(i=>!i.ky);
+  sheet('Chưa ký','DANH SÁCH CHƯA KÝ SỐ SỔ ĐẦU BÀI',['STT','Tuần','Lớp','Vai trò','Giáo viên','Môn','Trạng thái','Ghi chú'],
+    chua.map((i,k)=>[k+1,i.tuan,i.lop,i.vt,i.gv,i.mon,LV[i.lv][1],i.note]),[5,7,7,8,26,26,11,34],r=>r[6]==='Chưa ký'?'FFFDE2E2':'FFFFF2CC');
+  sheet('Theo giáo viên','THỐNG KÊ KÝ SỐ SỔ ĐẦU BÀI THEO GIÁO VIÊN',['STT','Giáo viên','Phải ký','Đã ký','Chưa ký','Tỉ lệ đã ký (%)','Lớp/tuần còn thiếu'],
+    Object.entries(th.gv).sort((a,b)=>a[0].localeCompare(b[0],'vi')).map(([g,o],k)=>[k+1,g,o.n,o.ky,o.n-o.ky,pct(o.ky,o.n),o.thieu.join(', ')]),[5,30,9,9,9,12,60],r=>r[4]?'FFFDE2E2':'FFE2F0D9');
+  sheet('Theo tuần','THỐNG KÊ KÝ SỐ SỔ ĐẦU BÀI THEO TUẦN',['STT','Tuần','Số sổ','GVBM phải ký','GVBM đã ký','Tỉ lệ (%)','GVCN đã ký','BGH đã ký','Sổ ký đủ'],
+    Object.entries(th.tuan).sort((a,b)=>a[0]-b[0]).map(([t,o],k)=>[k+1,+t,o.so,o.bm,o.bmky,pct(o.bmky,o.bm),o.cn,o.bgh,o.du]),[5,7,8,12,12,9,11,11,9]);
+  sheet('Theo lớp','THỐNG KÊ KÝ SỐ SỔ ĐẦU BÀI THEO LỚP',['STT','Lớp','GVCN','Số tuần','GVBM phải ký','GVBM đã ký','Tỉ lệ (%)','GVCN đã ký','BGH đã ký','Sổ ký đủ'],
+    Object.entries(th.lop).sort((a,b)=>cmpLop(a[0],b[0])).map(([l,o],k)=>[k+1,l,o.cnTen||'',o.tuans.size,o.bm,o.bmky,pct(o.bmky,o.bm),o.cn,o.bgh,o.du]),[5,7,24,8,12,12,9,11,11,9]);
+  sheet('Chi tiết','CHI TIẾT TRẠNG THÁI KÝ SỐ SỔ ĐẦU BÀI',['STT','Tuần','Lớp','Vai trò','Giáo viên','Môn','Trạng thái','Ghi chú'],
+    ITEMS.map((i,k)=>[k+1,i.tuan,i.lop,i.vt,i.gv,i.mon,LV[i.lv][1],i.note]),[5,7,7,8,26,26,11,34],r=>r[6]==='Chưa ký'?'FFFDE2E2':r[6]==='Chờ lượt'?'FFFFF2CC':null);
+  const buf=await wb.xlsx.writeBuffer();taiFile(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),'Kiem-tra-ky-so-SDB'+(namTxt()?'_'+namTxt():'')+'.xlsx')};
+
+/* Phiếu Word gửi từng giáo viên (mục chưa ký) */
+function phieu(gv,arr){const d=new Date(),ngay=`ngày ${d.getDate()} tháng ${d.getMonth()+1} năm ${d.getFullYear()}`;const td='border:1px solid #000;padding:3pt 4pt;vertical-align:top';const th=s=>`<th style="${td};background:#dde6f5;text-align:center">${s}</th>`;
+  const han=$('wHan').value.trim(),nguoi=$('wNguoi').value.trim(),cv=$('wChucVu').value.trim();
+  const rows=arr.map((i,k)=>`<tr><td style="${td};text-align:center">${k+1}</td><td style="${td};text-align:center">${i.tuan}</td><td style="${td};text-align:center">${esc(i.lop)}</td><td style="${td};text-align:center">${i.vt}</td><td style="${td}">${esc(i.mon)}</td><td style="${td}">${esc(i.note)}</td></tr>`).join('');
+  return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>Phiếu nhắc ký số</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->
+<style>@page Section1{size:595.3pt 841.9pt;margin:42pt 42pt 42pt 56pt}div.Section1{page:Section1}body{font-family:"Times New Roman";font-size:13pt}table{border-collapse:collapse;width:100%}td,th{font-size:12pt}</style></head><body><div class="Section1">
+<table style="width:100%"><tr><td style="text-align:center;width:45%;border:none"><b>${esc($('wTruong').value.trim().toUpperCase())}</b></td><td style="text-align:center;border:none"><b>CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM</b><br><b><u>Độc lập - Tự do - Hạnh phúc</u></b><br><i>Đa Phước, ${ngay}</i></td></tr></table>
+<p style="text-align:center;font-size:15pt;margin:14pt 0 2pt"><b>PHIẾU NHẮC KÝ SỐ SỔ ĐẦU BÀI</b></p><p style="text-align:center;margin:0 0 10pt">${esc(tuanTxt())}${namTxt()?' – Năm học '+namTxt():''}</p>
+<p style="margin:2pt 0">Kính gửi: thầy/cô <b>${esc(gv)}</b></p><p style="margin:2pt 0">Qua kiểm tra mục Ký số PDF sổ đầu bài trên vnEdu, thầy/cô còn <b style="color:#c00">${arr.length}</b> sổ chưa ký số như sau:</p>
+<table><thead><tr>${th('STT')}${th('Tuần')}${th('Lớp')}${th('Vai trò')}${th('Môn')}${th('Ghi chú')}</tr></thead><tbody>${rows}</tbody></table>
+<p style="margin:10pt 0 2pt">Đề nghị thầy/cô vào vnEdu → Sổ đầu bài → Ký số PDF → Danh sách sổ đầu bài, chọn các sổ trên và bấm <b>Ký số</b>${han?' trước ngày <b>'+esc(han)+'</b>':''}.</p>
+<table style="width:100%;margin-top:14pt"><tr><td style="border:none;width:50%;text-align:center"><b>GIÁO VIÊN</b><br><i>(Ký, ghi rõ họ tên)</i><br><br><br><br>${esc(gv)}</td><td style="border:none;text-align:center"><b>NGƯỜI KIỂM TRA</b>${cv?'<br>'+esc(cv):''}<br><i>(Ký, ghi rõ họ tên)</i><br><br><br><br>${esc(nguoi)}</td></tr></table></div></body></html>`}
+const tenFile=s=>strip(s).replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'')||'GV';
+const wordBlob=h=>new Blob(['﻿',h],{type:'application/msword'});
+$('btnWord').onclick=async()=>{const arr=filtered().filter(i=>!i.ky&&i.lv==='err'&&i.gv&&i.gv!=='Ban giám hiệu'&&i.gv!=='(GVCN)');if(!arr.length){alert('Không có mục chưa ký nào của giáo viên theo bộ lọc hiện tại.');return}
+  const gvs=[...new Set(arr.map(i=>i.gv))].sort((a,b)=>a.localeCompare(b,'vi'));
+  if(gvs.length===1){taiFile(wordBlob(phieu(gvs[0],arr)),'Phieu-nhac-ky-so_'+tenFile(gvs[0])+'.doc');return}
+  if(typeof JSZip==='undefined'){alert('Chưa tải được thư viện nén. Chọn từng giáo viên rồi bấm Xuất Word.');return}
+  const z=new JSZip();gvs.forEach(g=>z.file('Phieu-nhac-ky-so_'+tenFile(g)+'.doc',wordBlob(phieu(g,arr.filter(i=>i.gv===g)))));taiFile(await z.generateAsync({type:'blob'}),`Phieu-nhac-ky-so_${gvs.length}-giao-vien.zip`)};
+</script>
+</body></html>
