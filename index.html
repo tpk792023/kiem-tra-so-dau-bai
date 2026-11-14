@@ -517,6 +517,7 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
   const vNames=r=>{const s=String(r.vangRaw??'');const i=s.search(/[–:-]\s*\D/);const tail=s.replace(/^\s*v[ắa]ng\s*:?\s*\d+\s*[–-]?/i,'');
     return tail.split(/[,;\n]/).map(x=>x.replace(/\(\s*[PK]\s*\)/gi,'').trim()).filter(x=>x&&!/^\d+$/.test(x))};
   const NOTE=/\b(xin (ve|phep|nghi)|ve som|ra ve|cho ve|phu huynh|ruoc|don ve|benh|om|bi dau|dau bung|dau dau|sot|met|y te|kham|di (thi|tap|hop|kham)|doi tuyen|tap huan|bo tiet|bo ve|tron tiet|nghi|di ve|ve nha|ra ngoai|xuong (y te|phong)|boi duong|hsg|hoc sinh gioi|van nghe|the thao|hoi thi|hoi khoe|cong tac|tham gia|tai nan|nhap vien|cap cuu|tiem|chich|cam|bi ho|ho sot|dau (rang|mat|chan|tay|bung|dau)|choang|xiu|ngat|di tre|vao tre|vao lop tre|tre|muon|vang mat|co mat|da den|den lop)\b/;
+  const VAO_LOP=/\b(da vao|vao lop|vao hoc|vao tiet|vao lai|vao sau|vao muon|vao tre|quay lai|tro lai|tro vao|di hoc lai|co mat|da den|den lop|den muon|den tre|den sau|di tre|di muon|tre|muon|ve lop|da ve)\b/;
   group(live.filter(r=>r.tot!=null&&r.day&&r.tiet!=null),r=>r.lop+'|'+r.day.key+'|'+r.buoi).forEach(arr=>{
     arr.sort((a,b)=>a.tiet-b.tiet||a.idx-b.idx);
     for(let i=1;i<arr.length;i++){const p=arr[i-1],r=arr[i];if(r.tot===p.tot)continue;
@@ -525,7 +526,10 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
       const coTen=moi.length&&moi.every(n=>ten(n).some(t=>t&&(' '+nx+' ').includes(' '+t+' ')));
       const chuThich=NOTE.test(nx)||coTen;
       if(r.tot>p.tot){if(!chuThich)add(r,'vang','err',`Tiết ${p.tiet} vắng ${p.tot}, tiết ${r.tiet} vắng ${r.tot}${moi.length?' (thêm: '+moi.join(', ')+')':''} nhưng nhận xét không chú thích lý do`)}
-      else if(!chuThich)add(r,'vang','warn',`Tiết ${p.tiet} vắng ${p.tot}, tiết ${r.tiet} chỉ còn vắng ${r.tot} — kiểm tra lại`)}});
+      else{// số vắng giảm: nhận xét có ghi HS đã vào lớp (hoặc tên HS vào lại) thì thôi
+        const now=new Set(vNames(r).map(norm));const vao=vNames(p).filter(n=>!now.has(norm(n)));
+        const coTenVao=vao.length&&vao.every(n=>ten(n).some(t=>t&&(' '+nx+' ').includes(' '+t+' ')));
+        if(!chuThich&&!coTenVao&&!VAO_LOP.test(nx))add(r,'vang','warn',`Tiết ${p.tiet} vắng ${p.tot}, tiết ${r.tiet} chỉ còn vắng ${r.tot}${vao.length?' ('+vao.join(', ')+' có mặt)':''} nhưng nhận xét không ghi HS đã vào lớp — kiểm tra lại`)}}});
   // tên bài lệch giữa các lớp cùng khối (khi không có PPCT)
   if(!usePpct)group(live.filter(r=>r.ppct&&r.ten&&r.mon&&!isNgoaiPpct(r.ten)&&!isSinhHoat(r.mon)),r=>r.khoi+'|'+monKey(r.mon)+'|'+r.ppct).forEach(arr=>{const names={};arr.forEach(r=>{const k=canonTen(r.ten);(names[k]=names[k]||[]).push(r)});
     const ks=Object.keys(names);if(ks.length<2)return;ks.sort((a,b)=>names[b].length-names[a].length);const main=names[ks[0]][0].ten;
