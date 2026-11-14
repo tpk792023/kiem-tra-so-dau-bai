@@ -345,6 +345,8 @@ function parseVang(raw){if(isBlank(raw))return null;if(typeof raw==='number')ret
   return {P:0,K:0,U:countNames(raw)}}
 function parseCount(v){if(isBlank(v))return null;if(typeof v==='number')return v;const m=String(v).match(/\d+/);if(m&&/^\s*\d+\s*$/.test(String(v)))return +m[0];return countNames(v)}
 function loaiOf(d){return d>=S.tot?'Tốt':d>=S.kha?'Khá':d>=S.tb?'Đạt':'Yếu'}
+// Nhận xét có nêu lý do trừ điểm (HS không làm bài, nói chuyện, chưa thuộc bài…)
+const LYDO_TRU=/\b(chua|khong|con|mot so|1 so|vai|it|thieu|quen|noi chuyen|trat tu|on ao|lam viec rieng|lam rieng|dua|gion|lo la|luoi|ngu gat|ngu|tre|muon|tru|nhac nho|nhac|vi pham|phe binh|can (co gang|chu y|tap trung|nghiem tuc|khac phuc|chuan bi|hoc)|thu dong|tram|mat tap trung|xao nhang|an qua|danh nhau|cai nhau|vo le|hon lao)\b|\b\d+\s*(em|hs|hoc sinh|ban)\b/;
 function normLoai(s){const n=norm(s);if(!n)return '';if(/^(tot|t|a|gioi)$/.test(n))return 'Tốt';if(/^(kha|k|b)$/.test(n))return 'Khá';if(/^(tb|trung binh|c|dat)$/.test(n))return 'Đạt';if(/^(yeu|y|d|kem|chua dat)$/.test(n))return 'Yếu';return s}
 
 function buildRecords(){const recs=[],phe={},pheSeen={},cn={},cnSeen={},ktth={};let idx=0;
@@ -432,7 +434,9 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
       else{if(P!=null){const ded=Math.min(S.maxDed,P*S.dP+K*S.dK+U*S.dU);const cap=S.max-ded;
           if(d>cap+1e-9){const parts=[];if(P)parts.push(P+' có phép');if(K)parts.push(K+' không phép');if(U)parts.push(U+' chưa rõ phép');
             add(r,'diem','err',`Cho điểm sai số HS vắng: vắng ${parts.join(', ')} → phải trừ ${ded} điểm, tối đa ${cap}, đã cho ${d}`)}
-          else if(U)add(r,'vang','warn',`Ghi vắng ${U} HS nhưng không rõ có phép hay không phép (“${r.vangRaw}”)`)}
+          else if(d<cap-1e-9&&r.nx&&!LYDO_TRU.test(norm(r.nx)))
+            add(r,'diem','err',`Cho ${d} điểm (thấp hơn ${cap}${ded?' sau khi trừ vắng':', không HS vắng'}) nhưng nhận xét “${r.nx}” không ghi lý do trừ điểm`);
+          if(U&&d<=cap+1e-9)add(r,'vang','warn',`Ghi vắng ${U} HS nhưng không rõ có phép hay không phép (“${r.vangRaw}”)`)}
         if(r.hasLoai){const want=loaiOf(d);const got=normLoai(r.loai);if(!r.loai)add(r,'diem','err','Chưa ghi xếp loại tiết học');else if(got!==want)add(r,'diem','err',`Xếp loại sai: ${d} điểm phải là ${want}, đã ghi “${r.loai}”`)}}}
     else if(r.hasLoai&&!r.loai)add(r,'diem','err','Chưa xếp loại tiết học');
   }
