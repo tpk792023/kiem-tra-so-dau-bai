@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Xếp hạng cuối kì</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <style>
 :root{--bg:#f4f6fb;--card:#fff;--ink:#142039;--mut:#5d6880;--line:#dfe4ee;--pri:#0f3d8c;--h1:#fff2b3;--h2:#e3ecfa;--h3:#fde5d6}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#11151d;--card:#1a202b;--ink:#e6eaf2;--mut:#9aa5ba;--line:#2c3443;--pri:#8fb3ff;--h1:#4a4110;--h2:#22324f;--h3:#4a2c1c}}
@@ -44,6 +45,7 @@ tr.h1 td{background:var(--h1);font-weight:600}tr.h2 td{background:var(--h2);font
 <h2>2. Kết quả</h2>
 <div class="row noprint"><span class="mut small">Khối:</span><div class="tabs" id="tabs"></div><span style="flex:1"></span>
 <label class="small"><input type="checkbox" id="chiTop"> Chỉ hiện hạng I–III</label><button id="xls">Xuất Excel</button><button class="sec" id="in">In</button></div>
+<div class="row noprint small" style="margin:6px 0"><span class="mut">Tiêu đề file Excel:</span> Tên trường <input type="text" id="tTruong" style="width:230px"> Học kỳ <select id="tHk"><option value="I">I</option><option value="II">II</option><option value="">Cả năm</option></select> Năm học <input type="text" id="tNam" style="width:100px" placeholder="2025-2026"></div>
 <div id="sum" class="small mut" style="margin:6px 0"></div>
 <div class="tbl"><table><thead id="th"></thead><tbody id="tb"></tbody></table></div>
 </section>
@@ -110,6 +112,7 @@ function napDiemVnedu(t,nhan){const L=String(t).replace(/\r/g,'').split('\n').fi
   FILES=FILES.filter(f=>!f.vnedu);FILES.push({name:'vnEdu'+(nhan?' '+nhan:''),n:ds.length,mons:[...new Set(ds.flatMap(h=>Object.keys(h.diem)))],vnedu:1});
   $('note').textContent=n?'':'Không có điểm cuối kì nào (học kỳ chưa kết thúc?).';render();return true}
 window.addEventListener('message',e=>{if(e.source!==window.opener||!e.data||e.data.type!=='ksdb-diem'||typeof e.data.tsv!=='string')return;
+  if(e.data.nam){$('tNam').value=e.data.nam+'-'+(+e.data.nam+1);luuTieuDe()}if(e.data.hk){$('tHk').value=e.data.hk==2?'II':'I';luuTieuDe()}
   napDiemVnedu(e.data.tsv,e.data.nam?`năm học ${e.data.nam}-${+e.data.nam+1}, HK${e.data.hk}`:'')});
 if(window.opener)try{window.opener.postMessage('ksdb-ready','*')}catch(e){}
 $('dan').onclick=async()=>{let t='';try{t=await navigator.clipboard.readText()}catch(e){}
@@ -130,15 +133,40 @@ function render(){$('files').innerHTML=FILES.map(f=>`<span class="chip">${esc(f.
   const maxMon=Math.max(...ds.map(h=>h.somon));const thieu=ds.filter(h=>h.somon<maxMon).length;
   const top=ds.filter(h=>h.hang<=3);
   $('sum').innerHTML=`Khối ${esc(curKhoi)}: <b>${ds.length}</b> học sinh, ${mons.length} môn tính điểm. Hạng I–III: <b>${top.length}</b> học sinh.`+(thieu?` <span class="warn">${thieu} học sinh thiếu điểm cuối kì ở một số môn (cột “Số môn” nhỏ hơn ${maxMon}) — kiểm tra lại trước khi công bố.</span>`:'');
-  $('th').innerHTML=`<tr><th>Hạng</th><th>Họ và tên</th><th>Lớp</th><th>Tổng điểm</th><th>Số môn</th>${mons.map(m=>`<th>${esc(m)}</th>`).join('')}</tr>`;
+  // thứ tự cột: STT, Họ tên, Lớp, các môn, Số môn, Tổng điểm, Xếp hạng
+  $('th').innerHTML=`<tr><th>STT</th><th>Họ và tên</th><th>Lớp</th>${mons.map(m=>`<th>${esc(m)}</th>`).join('')}<th>Số môn</th><th>Tổng điểm</th><th>Xếp hạng</th></tr>`;
   const show=$('chiTop').checked?top:ds;
-  $('tb').innerHTML=show.map(h=>`<tr class="${h.hang<=3?'h'+h.hang:''}"><td>${LA[h.hang]||h.hang}</td><td>${esc(h.ten)}</td><td>${esc(h.lop)}</td><td class="n"><b>${h.tong}</b></td><td class="n${h.somon<maxMon?' warn':''}">${h.somon}</td>${mons.map(m=>`<td class="n">${h.diem[m]??''}</td>`).join('')}</tr>`).join('')}
+  $('tb').innerHTML=show.map((h,i)=>`<tr class="${h.hang<=3?'h'+h.hang:''}"><td class="n">${i+1}</td><td>${esc(h.ten)}</td><td>${esc(h.lop)}</td>${mons.map(m=>`<td class="n">${h.diem[m]??''}</td>`).join('')}<td class="n${h.somon<maxMon?' warn':''}">${h.somon}</td><td class="n"><b>${h.tong}</b></td><td style="text-align:center">${LA[h.hang]||h.hang}</td></tr>`).join('')}
 $('chiTop').onchange=render;$('in').onclick=()=>window.print();
-$('xls').onclick=()=>{const wb=XLSX.utils.book_new();khoiList().forEach(k=>{const ds=xepHang(HS.filter(h=>(h.khoi||'?')===k));const mons=[...new Set(ds.flatMap(h=>Object.keys(h.diem)))];
-    const aoa=[['Hạng','Họ và tên','Lớp','Tổng điểm','Số môn',...mons],...ds.map(h=>[LA[h.hang]||h.hang,h.ten,h.lop,h.tong,h.somon,...mons.map(m=>h.diem[m]??'')])];
-    const ws=XLSX.utils.aoa_to_sheet(aoa);ws['!cols']=[{wch:6},{wch:26},{wch:6}];
-    // tô màu hạng I–III (Excel mở bản .xlsx của SheetJS bản thường không giữ màu, nên ghi rõ cột Hạng)
-    XLSX.utils.book_append_sheet(wb,ws,k==='?'?'Chua ro lop':'Khoi '+k)});XLSX.writeFile(wb,'Xep-hang-cuoi-ki.xlsx')};
+// tiêu đề file Excel (lưu trên máy)
+function luuTieuDe(){try{localStorage.setItem('xh_tieude',JSON.stringify({t:$('tTruong').value,h:$('tHk').value,n:$('tNam').value}))}catch(e){}}
+(()=>{let o={};try{o=JSON.parse(localStorage.getItem('xh_tieude')||'{}')}catch(e){}$('tTruong').value=o.t||'TRƯỜNG TH & THCS ĐA PHƯỚC';if(o.h!=null)$('tHk').value=o.h;$('tNam').value=o.n||'';
+  ['tTruong','tHk','tNam'].forEach(id=>$(id).onchange=luuTieuDe)})();
+// Xuất Excel: mỗi khối 1 sheet, tiêu đề, đóng khung từ STT đến Xếp hạng, tô màu hạng I–III
+$('xls').onclick=async()=>{if(typeof ExcelJS==='undefined'){alert('Chưa tải được thư viện Excel, thầy cô kiểm tra mạng rồi bấm lại.');return}
+  const wb=new ExcelJS.Workbook();const truong=$('tTruong').value.trim().toUpperCase(),hk=$('tHk').value,nam=$('tNam').value.trim();
+  const MAU={1:'FFFFE699',2:'FFBDD7EE',3:'FFF8CBAD'};const vien={top:{style:'thin'},left:{style:'thin'},bottom:{style:'thin'},right:{style:'thin'}};
+  khoiList().forEach(k=>{let ds=xepHang(HS.filter(h=>(h.khoi||'?')===k));if($('chiTop').checked)ds=ds.filter(h=>h.hang<=3);const mons=[...new Set(ds.flatMap(h=>Object.keys(h.diem)))];
+    const ws=wb.addWorksheet(k==='?'?'Chua ro lop':'Khoi '+k,{pageSetup:{orientation:'landscape',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0},views:[{state:'frozen',ySplit:6}]});
+    const nCot=3+mons.length+3;const half=Math.max(3,Math.floor(nCot*0.35));
+    // tiêu đề: tên trường bên trái, tên danh sách ở giữa
+    ws.mergeCells(1,1,1,half);Object.assign(ws.getCell(1,1),{value:truong});ws.getCell(1,1).font={bold:true,size:12};ws.getCell(1,1).alignment={horizontal:'center'};
+    ws.mergeCells(3,1,3,nCot);ws.getCell(3,1).value=`DANH SÁCH HỌC SINH KHỐI ${k} CÓ ĐIỂM ĐÁNH GIÁ CUỐI KÌ CAO NHẤT`;ws.getCell(3,1).font={bold:true,size:14};ws.getCell(3,1).alignment={horizontal:'center'};
+    ws.mergeCells(4,1,4,nCot);ws.getCell(4,1).value=(hk?'Học kỳ '+hk+' – ':'')+'Năm học '+(nam||'……');ws.getCell(4,1).font={bold:true,size:12};ws.getCell(4,1).alignment={horizontal:'center'};
+    const H=['STT','Họ và tên','Lớp',...mons,'Số môn','Tổng điểm','Xếp hạng'];const hr=ws.getRow(6);
+    H.forEach((v,i)=>{const c=hr.getCell(i+1);c.value=v;c.font={bold:true};c.alignment={horizontal:'center',vertical:'middle',wrapText:true};c.border=vien;c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFD9E1F2'}}});hr.height=45;
+    ds.forEach((h,i)=>{const r=ws.getRow(7+i);const vals=[i+1,h.ten,h.lop,...mons.map(m=>h.diem[m]??null),h.somon,h.tong,LA[h.hang]||h.hang];
+      vals.forEach((v,j)=>{const c=r.getCell(j+1);c.value=v;c.border=vien;c.alignment={horizontal:j===1?'left':'center',vertical:'middle'};
+        if(h.hang<=3){c.fill={type:'pattern',pattern:'solid',fgColor:{argb:MAU[h.hang]}};c.font={bold:true}}
+        if(j>=3&&j<3+mons.length&&typeof v==='number')c.numFmt='0.0#';if(j===H.length-2)c.numFmt='0.0#'})});
+    ws.getColumn(1).width=5;ws.getColumn(2).width=26;ws.getColumn(3).width=7;mons.forEach((m,i)=>ws.getColumn(4+i).width=9);
+    ws.getColumn(nCot-2).width=7;ws.getColumn(nCot-1).width=9;ws.getColumn(nCot).width=9;
+    // chú thích màu
+    const cr=7+ds.length+1;ws.getCell(cr,2).value='Hạng I';ws.getCell(cr,2).fill={type:'pattern',pattern:'solid',fgColor:{argb:MAU[1]}};
+    ws.getCell(cr,3).value='Hạng II';ws.getCell(cr,3).fill={type:'pattern',pattern:'solid',fgColor:{argb:MAU[2]}};
+    ws.getCell(cr,4).value='Hạng III';ws.getCell(cr,4).fill={type:'pattern',pattern:'solid',fgColor:{argb:MAU[3]}}});
+  const buf=await wb.xlsx.writeBuffer();const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+  a.download='Xep-hang-cuoi-ki'+(nam?'_'+nam:'')+(hk?'_HK'+hk:'')+'.xlsx';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000)};
 render();
 </script>
 </body></html>

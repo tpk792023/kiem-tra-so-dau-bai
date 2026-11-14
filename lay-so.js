@@ -1,7 +1,7 @@
 (function(){
 /* Nút "Lấy sổ đầu bài" chạy trên trang vnEdu: chỉ ĐỌC sổ, không sửa gì. */
 var CS=document.currentScript;var BASE=CS&&CS.src?CS.src.split('lay-so.js')[0]:'https://tpk792023.github.io/kiem-tra-so-dau-bai/';
-var VER='2026-11-14b'; /* đổi số này mỗi lần sửa để khung cũ trên trang được thay bằng khung mới */
+var VER='2026-11-14c'; /* đổi số này mỗi lần sửa để khung cũ trên trang được thay bằng khung mới */
 if(window.__ksdbPanel&&document.body.contains(window.__ksdbPanel)){if(window.__ksdbVer===VER){window.__ksdbPanel.style.display='block';return}window.__ksdbPanel.remove()}
 window.__ksdbVer=VER;
 if(typeof Ext==='undefined'){alert('Thầy cô mở trang vnEdu (Sổ đầu bài → Chi tiết sổ đầu bài) rồi mới bấm nút này.');return}
@@ -84,7 +84,7 @@ P.innerHTML='<b style="font-size:15px;color:#0f3d8c">Lấy sổ đầu bài đ�
  '<div id="kst" style="margin-top:8px;color:#0f7a3d"></div>'+
  '<div style="border-top:1px solid #dfe4ee;margin-top:10px;padding-top:8px"><b style="color:#0f3d8c">Điểm cuối kì → xếp hạng theo khối</b>'+
  '<div style="margin:4px 0">Học kỳ <select id="dhk"><option value="1">Học kỳ 1</option><option value="2">Học kỳ 2</option></select> Khối <select id="dkh"><option value="">Tất cả</option></select></div>'+
- '<div style="display:flex;gap:6px;flex-wrap:wrap"><button id="dgo">Lấy điểm và xếp hạng</button><button id="dcp">Chép điểm để dán</button></div>'+
+ '<div style="display:flex;gap:6px;flex-wrap:wrap"><button id="dgo">Lấy điểm và xếp hạng</button><button id="dsend" style="font-weight:bold">Gửi sang trang xếp hạng</button><button id="dcp">Chép điểm để dán</button></div>'+
  '<div id="dst" style="margin-top:6px;color:#0f7a3d"></div></div>';
 document.body.appendChild(P);
 function $(i){return P.querySelector('#'+i)}
@@ -128,7 +128,7 @@ function chepDiem(){if(!DIEM.length){dst('Chưa lấy điểm. Bấm “Lấy đ
 $('kx').onclick=function(){P.style.display='none'};
 $('kclr').onclick=function(){for(var k in G)delete G[k];for(var q in KY)delete KY[q];status('Đã xoá. Đã gom 0 sổ.')};
 $('kstop').onclick=function(){stop=true};
-$('kcp').onclick=copy;$('ksend').onclick=send;$('dgo').onclick=layDiem;$('dcp').onclick=chepDiem;
+$('kcp').onclick=copy;$('ksend').onclick=send;$('dgo').onclick=layDiem;$('dcp').onclick=chepDiem;$('dsend').onclick=function(){if(!DIEM.length){dst('Chưa lấy điểm. Bấm “Lấy điểm và xếp hạng” trước.');return}guiDiem()};
 $('kgo').onclick=async function(){if(!lc||!wc)return;stop=false;var w1=+$('kt1').value||wc.getValue(),w2=+$('kt2').value||w1;if(w2<w1){var x=w1;w1=w2;w2=x}
   var lops=$('kl').value?[$('kl').value]:lc.store.getRange().map(function(r){return r.get(lc.valueField)});
   $('kgo').disabled=true;$('kstop').style.display='';var w0=$('kref').checked&&w1>1?w1-1:w1;var n=0,tot=(w2-w0+1)*lops.length,err=0;
