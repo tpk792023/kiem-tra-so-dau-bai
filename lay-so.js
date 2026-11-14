@@ -1,7 +1,9 @@
 (function(){
 /* Nút "Lấy sổ đầu bài" chạy trên trang vnEdu: chỉ ĐỌC sổ, không sửa gì. */
 var CS=document.currentScript;var BASE=CS&&CS.src?CS.src.split('lay-so.js')[0]:'https://tpk792023.github.io/kiem-tra-so-dau-bai/';
-if(window.__ksdbPanel&&document.body.contains(window.__ksdbPanel)){window.__ksdbPanel.style.display='block';return}
+var VER='2026-11-14b'; /* đổi số này mỗi lần sửa để khung cũ trên trang được thay bằng khung mới */
+if(window.__ksdbPanel&&document.body.contains(window.__ksdbPanel)){if(window.__ksdbVer===VER){window.__ksdbPanel.style.display='block';return}window.__ksdbPanel.remove()}
+window.__ksdbVer=VER;
 if(typeof Ext==='undefined'){alert('Thầy cô mở trang vnEdu (Sổ đầu bài → Chi tiết sổ đầu bài) rồi mới bấm nút này.');return}
 var G=window.__ksdbData=window.__ksdbData||{};
 function comps(){var a=Ext.ComponentManager.all;return a.getArray?a.getArray():(a.items||[])}
