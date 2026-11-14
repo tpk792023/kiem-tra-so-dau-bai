@@ -298,7 +298,10 @@ const PHRASES=new Set(('tích cực,sôi nổi,nghiêm túc,chú ý,phát biểu
 const REDUP=new Set('song song từ từ xa xa xanh xanh đo đỏ nho nhỏ chầm chậm rồi rồi tí tí chút chút'.split(' ').filter(w=>w.length>1));
 function ed1(a,b){if(a===b)return false;const la=a.length,lb=b.length;let i=0;while(i<la&&i<lb&&a[i]===b[i])i++;
   if(la===lb)return a.slice(i+1)===b.slice(i+1);if(la+1===lb)return a.slice(i)===b.slice(i+1);if(la===lb+1)return a.slice(i+1)===b.slice(i);return false}
-function spellCheck(text){if(!text)return [];const white=new Set(S.white.toLowerCase().split(/\s+/).filter(Boolean));const bad=[];
+// tên học sinh (Basaam, Leck… không dấu, không theo vần tiếng Việt) trong nhận xét: không phải lỗi chính tả
+let TEN_HS=new Set();
+const giongTen=w=>strip(w)===w&&!/[fjwz]|dd|aw|ow|uw|[aeiouy][sfrxj]$/i.test(w);
+function spellCheck(text,laNx){if(!text)return [];const white=new Set(S.white.toLowerCase().split(/\s+/).filter(Boolean));const bad=[];
   text=String(text).normalize('NFC');let prev='';
   for(const m of text.matchAll(/[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*/gu)){const tk=m[0];const before=text.slice(0,m.index).trimEnd();const start=!before||/[.!?:;(\-–\n]$/.test(before);
    for(const w of tk.split('-')){if(!w)continue;const lw=w.toLowerCase();
@@ -311,6 +314,8 @@ function spellCheck(text){if(!text)return [];const white=new Set(S.white.toLower
     if(white.has(lw)||white.has(tk.toLowerCase()))continue;
     if(isVietSyl(lw))continue;
     if(!start&&/^\p{Lu}/u.test(w))continue; // viết hoa giữa câu: thường là tên riêng
+    if(TEN_HS.has(lw))continue; // tên HS có trong danh sách vắng
+    if(laNx&&(/^\p{Lu}/u.test(w)&&strip(w)===w||giongTen(w)))continue; // tên HS (Basaam, leck…)
     bad.push(`“${w}”`)}}
   // cụm 2 tiếng gần giống cụm quen dùng (bắt lỗi như “tích cự”, “sôi nỗi”, “giữa ký”)
   const ws=text.toLowerCase().split(/[^\p{L}]+/u).filter(Boolean);
@@ -404,6 +409,8 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
   const B=buildRecords();const ALL=B.recs,recs=ALL.filter(r=>!r.ref),{phe,pheSeen,cn,cnSeen,ktth}=B;ISSUES=[];
   const add=(r,type,lv,msg)=>ISSUES.push({lop:r.lop,tuan:tuanLb(r.wk),ngay:r.day?r.day.label:'',tiet:r.tiet??'',mon:r.mon||'',gv:r.gv||'',type,lv,msg,src:r.src,rowNo:r.rowNo,sortD:r.day&&r.day.date?r.day.date.getTime():0,idx:r.idx??0});
   const usePpct=Object.keys(PPCT).length>0;
+  TEN_HS=new Set();ALL.forEach(r=>String(r.vangRaw??'').replace(/^\s*v[ắa]ng\s*:?\s*\d+\s*[–-]?/i,'').split(/[,;\n]/).forEach(n=>
+    n.replace(/\(\s*[PK]\s*\)/gi,'').normalize('NFC').toLowerCase().split(/[^\p{L}]+/u).forEach(x=>{if(x)TEN_HS.add(x)})));
   for(const r of recs){
     if(r.empty){if(S.empty)add(r,'tiet','err','Tiết trống: chưa ghi môn và tên bài');continue}
     // tên bài
@@ -421,7 +428,7 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
     // nhận xét
     if(r.hasNx&&!r.nx)add(r,'nx','err','Chưa ghi nhận xét tiết học'); // nhận xét ngắn như “Tốt” vẫn được
     // chính tả
-    if(S.spell){const foreign=/^(tieng|ngoai ngu|anh)/.test(norm(r.mon));const b1=foreign?[]:spellCheck(r.ten),b2=spellCheck(r.nx);if(b1.length)add(r,'ct','warn','Tên bài: '+b1.join(', '));if(b2.length)add(r,'ct','warn','Nhận xét: '+b2.join(', '))}
+    if(S.spell){const foreign=/^(tieng|ngoai ngu|anh)/.test(norm(r.mon));const b1=foreign?[]:spellCheck(r.ten),b2=spellCheck(r.nx,true);if(b1.length)add(r,'ct','warn','Tên bài: '+b1.join(', '));if(b2.length)add(r,'ct','warn','Nhận xét: '+b2.join(', '))}
     // ký
     if(r.hasKy&&isBlank(r.ky))add(r,'phe','err','Giáo viên chưa ký tiết dạy');
     // vắng
