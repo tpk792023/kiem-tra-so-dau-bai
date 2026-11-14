@@ -312,7 +312,6 @@ function spellCheck(text){if(!text)return [];const white=new Set(S.white.toLower
       if(p.length===pr.length&&strip(p)!==strip(pr))continue; // chỉ nhận sai dấu, hoặc thiếu/thừa 1 chữ
       bad.push(`“${ws[i]} ${ws[i+1]}” → “${p}”?`);break}}
   if(/ {2,}/.test(text))bad.push('thừa dấu cách');
-  if(/\s[,.;:!?]/.test(text))bad.push('dấu câu đặt sau dấu cách');
   return [...new Set(bad)]}
 
 /* ================= đọc từng dòng ================= */
