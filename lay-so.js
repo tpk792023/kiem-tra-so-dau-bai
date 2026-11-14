@@ -39,9 +39,9 @@ async function select(c,id){var f=document.querySelector('form[id$="_frm"] table
   c.setValue(id);c.fireEvent('select',c,[rec]);var t0=Date.now();
   while(Date.now()-t0<30000){await wait(300);var t=document.querySelector('form[id$="_frm"] table.table');if(t&&!t.__old&&t.querySelector('td[tiet]')){await wait(200);return true}}
   return false}
-var H=['Lớp','Tuần','Thứ, ngày','Buổi','Tiết','Môn học','Tiết PPCT','HS vắng','Vắng có phép','Vắng không phép','Tên bài dạy','Nhận xét','Điểm','Xếp loại','Giáo viên','Ký tên','Phê GVCN','Phê BGH','Tiết không thực hiện'];
+var H=['Lớp','Tuần','Thứ, ngày','Buổi','Tiết','Môn học','Tiết PPCT','HS vắng','Vắng có phép','Vắng không phép','Tên bài dạy','Nhận xét','Điểm','Xếp loại','Giáo viên','Ký tên','Phê GVCN','Phê BGH','Tiết không thực hiện','Tuần tham chiếu'];
 function count(){return Object.keys(G).length}
-function tsv(){var out=[H.join('\t')];Object.keys(G).sort().forEach(function(k){G[k].rows.forEach(function(r){out.push(r.map(function(v){return String(v==null?'':v).replace(/[\t\r\n]+/g,' ')}).join('\t'))})});return out.join('\n')}
+function tsv(){var out=[H.join('\t')];Object.keys(G).sort().forEach(function(k){var ref=G[k].ref?'x':'';G[k].rows.forEach(function(r){out.push(r.concat([ref]).map(function(v){return String(v==null?'':v).replace(/[\t\r\n]+/g,' ')}).join('\t'))})});return out.join('\n')}
 function copy(){var s=tsv();var ok=function(){status('Đã chép '+count()+' sổ. Sang trang Kiểm tra sổ đầu bài, bấm “Dán từ vnEdu”.')};
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(s).then(ok,fb);else fb();
   function fb(){var a=document.createElement('textarea');a.value=s;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove();ok()}}
@@ -56,6 +56,7 @@ P.style.cssText='position:fixed;right:16px;bottom:16px;z-index:999999;background
 P.innerHTML='<b style="font-size:15px;color:#0f3d8c">Lấy sổ đầu bài để kiểm tra</b><a id="kx" style="float:right;cursor:pointer;font-size:16px">✕</a>'+
  '<div style="margin:6px 0;color:#5d6880">Chỉ đọc sổ, không sửa gì trên vnEdu.</div>'+
  '<div>Tuần từ <input id="kt1" style="width:40px"> đến <input id="kt2" style="width:40px"></div>'+
+ '<label style="display:block;margin:4px 0"><input type="checkbox" id="kref" checked> Lấy kèm tuần trước để so thời khoá biểu (phát hiện GV chưa ghi sổ)</label>'+
  '<div style="margin:4px 0">Lớp: <select id="kl" style="max-width:150px"><option value="">Tất cả lớp</option></select></div>'+
  '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"><button id="kgo">Lấy sổ</button><button id="ksend" style="font-weight:bold">Gửi sang trang kiểm tra</button><button id="kcp">Chép để dán</button><button id="kclr">Xoá đã gom</button><button id="kstop" style="display:none">Dừng</button></div>'+
  '<div id="kst" style="margin-top:8px;color:#0f7a3d"></div>';
@@ -73,10 +74,10 @@ $('kstop').onclick=function(){stop=true};
 $('kcp').onclick=copy;$('ksend').onclick=send;
 $('kgo').onclick=async function(){if(!lc||!wc)return;stop=false;var w1=+$('kt1').value||wc.getValue(),w2=+$('kt2').value||w1;if(w2<w1){var x=w1;w1=w2;w2=x}
   var lops=$('kl').value?[$('kl').value]:lc.store.getRange().map(function(r){return r.get(lc.valueField)});
-  $('kgo').disabled=true;$('kstop').style.display='';var n=0,tot=(w2-w1+1)*lops.length,err=0;
-  for(var w=w1;w<=w2&&!stop;w++){if(!(await select(wc,w))){err++;continue}
+  $('kgo').disabled=true;$('kstop').style.display='';var w0=$('kref').checked&&w1>1?w1-1:w1;var n=0,tot=(w2-w0+1)*lops.length,err=0;
+  for(var w=w0;w<=w2&&!stop;w++){var isRef=w<w1;if(!(await select(wc,w))){err++;continue}
     for(var i=0;i<lops.length&&!stop;i++){status('Đang đọc tuần '+w+', lớp '+lc.store.findRecord(lc.valueField,lops[i]).get(lc.displayField)+' ('+(++n)+'/'+tot+')…');
-      if(!(await select(lc,lops[i]))){err++;continue}var d=grab();if(d&&d.rows.length)G[d.lop+'|'+String(d.tuan).padStart(2,'0')]=d}}
+      if(!(await select(lc,lops[i]))){err++;continue}var d=grab();if(d&&d.rows.length){var key=d.lop+'|'+String(d.tuan).padStart(2,'0');d.ref=isRef&&!(G[key]&&!G[key].ref);G[key]=d}}}
   $('kgo').disabled=false;$('kstop').style.display='none';
   status((stop?'Đã dừng. ':'Xong! ')+'Đã gom '+count()+' sổ'+(err?' ('+err+' lần tải lỗi)':'')+'. Bấm “Gửi sang trang kiểm tra”.')};
 })();
