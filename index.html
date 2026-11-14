@@ -438,9 +438,19 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
       else if(c>p+1&&p>0)add(arr[i],'tiet','err',`Bỏ sót tiết PPCT ${p+1===c-1?p+1:(p+1)+'–'+(c-1)} môn ${arr[i].mon} (trước là tiết ${p}, sau là tiết ${c})`);
       else if(c<p)add(arr[i],'tiet','warn',`Tiết PPCT ${c} ghi sau tiết ${p} — kiểm tra lại thứ tự`)}});
   // vắng khác các tiết khác trong ngày
-  group(live.filter(r=>r.tot!=null&&r.day),r=>r.lop+'|'+r.day.key+'|'+r.buoi).forEach(arr=>{if(arr.length<3)return;const cnt={};arr.forEach(r=>cnt[r.tot]=(cnt[r.tot]||0)+1);
-    const [mode,mc]=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0];if(mc<2)return;
-    arr.forEach(r=>{if(String(r.tot)!==mode)add(r,'vang','warn',`Ghi vắng ${r.tot} HS, khác các tiết khác cùng buổi (đa số ghi ${mode})`)})});
+  // so với tiết liền trước trong cùng buổi: tăng số vắng mà nhận xét không chú thích (xin về, tên HS…) thì báo lỗi
+  const vNames=r=>{const s=String(r.vangRaw??'');const i=s.search(/[–:-]\s*\D/);const tail=s.replace(/^\s*v[ắa]ng\s*:?\s*\d+\s*[–-]?/i,'');
+    return tail.split(/[,;\n]/).map(x=>x.replace(/\(\s*[PK]\s*\)/gi,'').trim()).filter(x=>x&&!/^\d+$/.test(x))};
+  const NOTE=/\b(xin (ve|phep|nghi)|ve som|ra ve|cho ve|phu huynh|ruoc|don ve|benh|om|bi dau|dau bung|dau dau|sot|met|y te|kham|di (thi|tap|hop|kham)|doi tuyen|tap huan|bo tiet|bo ve|tron tiet|nghi)\b/;
+  group(live.filter(r=>r.tot!=null&&r.day&&r.tiet!=null),r=>r.lop+'|'+r.day.key+'|'+r.buoi).forEach(arr=>{
+    arr.sort((a,b)=>a.tiet-b.tiet||a.idx-b.idx);
+    for(let i=1;i<arr.length;i++){const p=arr[i-1],r=arr[i];if(r.tot===p.tot)continue;
+      const nx=norm(r.nx);const before=new Set(vNames(p).map(norm));const moi=vNames(r).filter(n=>!before.has(norm(n)));
+      const ten=n=>{const w=norm(n).split(' ');return [w.slice(-1)[0],w.slice(-2).join(' ')]};
+      const coTen=moi.length&&moi.every(n=>ten(n).some(t=>t&&(' '+nx+' ').includes(' '+t+' ')));
+      const chuThich=NOTE.test(nx)||coTen;
+      if(r.tot>p.tot){if(!chuThich)add(r,'vang','err',`Tiết ${p.tiet} vắng ${p.tot}, tiết ${r.tiet} vắng ${r.tot}${moi.length?' (thêm: '+moi.join(', ')+')':''} nhưng nhận xét không chú thích lý do`)}
+      else if(!chuThich)add(r,'vang','warn',`Tiết ${p.tiet} vắng ${p.tot}, tiết ${r.tiet} chỉ còn vắng ${r.tot} — kiểm tra lại`)}});
   // tên bài lệch giữa các lớp cùng khối (khi không có PPCT)
   if(!usePpct)group(live.filter(r=>r.ppct&&r.ten&&r.mon&&!isNgoaiPpct(r.ten)),r=>r.khoi+'|'+monKey(r.mon)+'|'+r.ppct).forEach(arr=>{const names={};arr.forEach(r=>{const k=norm(cleanTen(r.ten));(names[k]=names[k]||[]).push(r)});
     const ks=Object.keys(names);if(ks.length<2)return;ks.sort((a,b)=>names[b].length-names[a].length);const main=names[ks[0]][0].ten;
