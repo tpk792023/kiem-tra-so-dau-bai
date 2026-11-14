@@ -370,6 +370,11 @@ function buildRecords(){const recs=[],phe={},pheSeen={},cn={},cnSeen={},ktth={};
 function sim(a,b){const bg=s=>{s=String(s).toLowerCase().replace(/\s+/g,' ').trim();const m=new Map();for(let i=0;i<s.length-1;i++){const k=s.substr(i,2);m.set(k,(m.get(k)||0)+1)}return [m,Math.max(s.length-1,0)]};
   const [A,na]=bg(a),[B,nb]=bg(b);if(!na||!nb)return a.toLowerCase()===b.toLowerCase()?1:0;let x=0;A.forEach((v,k)=>x+=Math.min(v,B.get(k)||0));return 2*x/(na+nb)}
 const cleanTen=s=>String(s).replace(/^\s*(bài|tiết|chủ đề|chương|bai|tiet)\s*\d+\s*[:.\-–]?\s*/i,'').replace(/\(\s*(tiết|t)\s*\d+[^)]*\)\s*$/i,'').replace(/[.;,\s]+$/,'').trim();
+// dạng chuẩn để so tên bài: hiểu chữ viết tắt KT, GK, CK, HK, (tt), kì/kỳ, I/1…
+const ABBR_TEN={kt:'kiem tra',gk:'giua ki',ck:'cuoi ki',hk:'hoc ki',gki:'giua ki 1',gkii:'giua ki 2',cki:'cuoi ki 1',ckii:'cuoi ki 2',hki:'hoc ki 1',hkii:'hoc ki 2',ky:'ki',i:'1',ii:'2',tt:'',ot:'on tap',th:'thuc hanh',lt:'luyen tap'};
+function canonTen(s){let n=norm(cleanTen(s)).replace(/\btiep theo\b/g,' ').replace(/\btiet \d+\b/g,' ');
+  n=n.replace(/\b(kt)(gk|ck|hk)/g,'$1 $2').replace(/\b(gk|ck|hk)(\d)\b/g,'$1 $2').replace(/\bkt(\d)\b/g,'kt $1');
+  return n.split(' ').map(w=>w in ABBR_TEN?ABBR_TEN[w]:w).join(' ').replace(/\s+/g,' ').trim()}
 function bestSim(a,b){return Math.max(sim(a,b),sim(cleanTen(a),cleanTen(b)))}
 
 let ISSUES=[],STATS={};
@@ -390,7 +395,7 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
     if(r.ppct===0&&!ngoai)add(r,'tenbai','err','Tiết PPCT ghi số 0 (chỉ tiết củng cố/bổ sung kiến thức mới ghi 0)');
     if(ngoai&&r.ppct!=null&&r.ppct!==0)add(r,'tenbai','warn',`Tiết củng cố/bổ sung kiến thức nhưng ghi tiết PPCT ${r.ppct} (phải ghi 0)`);
     if(usePpct&&r.ten&&r.ppct&&!ngoai){const ref=ppctLookup(r.mon,r.khoi,r.ppct);
-      if(ref){const sm=bestSim(r.ten,ref);const same=norm(cleanTen(r.ten))===norm(cleanTen(ref));
+      if(ref){const sm=bestSim(r.ten,ref);const same=canonTen(r.ten)===canonTen(ref);
         const a=cleanTen(r.ten).toLowerCase(),b=cleanTen(ref).toLowerCase();const part=!same&&a.length>=6&&b.includes(a.replace(/[.;,\s]+$/,''));
         if(part){add(r,'tenbai','warn',`Tên bài ghi chưa đủ theo PPCT tiết ${r.ppct}: “${r.ten}” – PPCT: “${ref}”`)}else
         if(same&&cleanTen(r.ten).toLowerCase()!==cleanTen(ref).toLowerCase()&&strip(cleanTen(r.ten)).toLowerCase()===strip(cleanTen(ref)).toLowerCase())add(r,'tenbai','warn',`Tên bài sai dấu so với PPCT tiết ${r.ppct}: “${r.ten}” – PPCT: “${ref}”`);
@@ -452,9 +457,9 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
       if(r.tot>p.tot){if(!chuThich)add(r,'vang','err',`Tiết ${p.tiet} vắng ${p.tot}, tiết ${r.tiet} vắng ${r.tot}${moi.length?' (thêm: '+moi.join(', ')+')':''} nhưng nhận xét không chú thích lý do`)}
       else if(!chuThich)add(r,'vang','warn',`Tiết ${p.tiet} vắng ${p.tot}, tiết ${r.tiet} chỉ còn vắng ${r.tot} — kiểm tra lại`)}});
   // tên bài lệch giữa các lớp cùng khối (khi không có PPCT)
-  if(!usePpct)group(live.filter(r=>r.ppct&&r.ten&&r.mon&&!isNgoaiPpct(r.ten)),r=>r.khoi+'|'+monKey(r.mon)+'|'+r.ppct).forEach(arr=>{const names={};arr.forEach(r=>{const k=norm(cleanTen(r.ten));(names[k]=names[k]||[]).push(r)});
+  if(!usePpct)group(live.filter(r=>r.ppct&&r.ten&&r.mon&&!isNgoaiPpct(r.ten)),r=>r.khoi+'|'+monKey(r.mon)+'|'+r.ppct).forEach(arr=>{const names={};arr.forEach(r=>{const k=canonTen(r.ten);(names[k]=names[k]||[]).push(r)});
     const ks=Object.keys(names);if(ks.length<2)return;ks.sort((a,b)=>names[b].length-names[a].length);const main=names[ks[0]][0].ten;
-    const mk=norm(cleanTen(main));
+    const mk=canonTen(main);
     ks.slice(1).forEach(k=>names[k].forEach(r=>{if(k.includes(mk)||mk.includes(k)||bestSim(r.ten,main)>=0.6)return;add(r,'tenbai','warn',`Tiết PPCT ${r.ppct} lớp ${r.lop} ghi “${r.ten}”, các lớp khác ghi “${main}”`)}))});
   // phê sổ theo tuần
   Object.keys(pheSeen).forEach(k=>{if(!phe[k]){const [lop,wk]=k.split('|');ISSUES.push({lop,tuan:tuanLb(wk),ngay:'',tiet:'',mon:'',gv:'',type:'phe',lv:'err',msg:`BGH chưa phê sổ ${wk}`,sortD:0,idx:-1})}});
