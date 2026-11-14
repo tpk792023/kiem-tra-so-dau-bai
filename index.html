@@ -429,6 +429,7 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
   }
   const live=recs.filter(r=>!r.empty);
   // so với thời khoá biểu tuần trước: tuần trước có tiết, tuần này ô đó trống → GV chưa ghi/ký sổ
+  const tkbMiss=new Set();
   {const wdOf=r=>{if(r.day&&r.day.date){const g=r.day.date.getDay();return g===0?8:g+1}const m=String(r.day&&r.day.label||'').match(/th[ứu]\s*(\d)/i);return m?+m[1]:(/cn|chu nhat/.test(norm(r.day&&r.day.label))?8:null)};
    const slot=new Map(),daysWithData=new Set(),weeksOf={};
    ALL.forEach(r=>{if(r.tuanNum==null||r.tiet==null||r.extra)return;const wd=wdOf(r);if(wd==null)return;r._wd=wd;
@@ -439,13 +440,14 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
      if(!daysWithData.has(w+'|'+p._wd))return; // cả trường không ghi ngày đó: nghỉ lễ, nghỉ học
      const k=p.lop+'|'+w+'|'+p._wd+'|'+p.buoi+'|'+p.tiet;if(slot.get(k))return;
      let ngay='';if(p.day&&p.day.date){const d=new Date(p.day.date);d.setDate(d.getDate()+7);ngay=String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear()}
+     tkbMiss.add(p.lop+'|'+ngay+'|'+p.buoi+'|'+p.tiet);
      ISSUES.push({lop:p.lop,tuan:'Tuần '+w,ngay,tiet:p.tiet,mon:p.mon,gv:p.gv,type:'tiet',lv:'err',
        msg:`Chưa ghi sổ tiết ${p.tiet} buổi ${String(p.buoi||'').toLowerCase()} ${p._wd===8?'Chủ nhật':'thứ '+p._wd} — theo TKB tuần ${p.tuanNum} là môn ${p.mon}${p.gv?', GV '+p.gv:''}`,sortD:ngay?parseDay(ngay).date.getTime():0,idx:-1})})}
   const group=(arr,kf)=>{const m=new Map();arr.forEach(r=>{const k=kf(r);if(!m.has(k))m.set(k,[]);m.get(k).push(r)});return m};
   // thiếu tiết trong buổi
   group(recs.filter(r=>r.tiet!=null),r=>r.lop+'|'+(r.day?r.day.key:'')+'|'+r.buoi).forEach(arr=>{const fil=arr.filter(r=>!r.empty);if(!fil.length)return;
     const nums=[...new Set(fil.map(r=>r.tiet))].sort((a,b)=>a-b);const all=new Set(arr.map(r=>r.tiet));const mx=nums[nums.length-1];const f=fil[0];
-    for(let t=nums[0]+1;t<mx;t++)if(!nums.includes(t)&&!(all.has(t)&&S.empty))add(Object.assign({},f,{tiet:t,mon:'',gv:''}),'tiet','warn',`Có thể thiếu tiết ${t}${f.buoi?' buổi '+f.buoi.toLowerCase():''}: có tiết ${nums.join(', ')} nhưng không có tiết ${t}`);
+    for(let t=nums[0]+1;t<mx;t++)if(!nums.includes(t)&&!(all.has(t)&&S.empty)&&!tkbMiss.has(f.lop+'|'+(f.day?f.day.key:'')+'|'+f.buoi+'|'+t))add(Object.assign({},f,{tiet:t,mon:'',gv:''}),'tiet','warn',`Có thể thiếu tiết ${t}${f.buoi?' buổi '+f.buoi.toLowerCase():''}: có tiết ${nums.join(', ')} nhưng không có tiết ${t}`);
     if(S.minTiet>0&&nums.length<S.minTiet)add(Object.assign({},f,{tiet:'',mon:'',gv:''}),'tiet','warn',`Buổi chỉ ghi ${nums.length} tiết, ít hơn ${S.minTiet}`);
     group(fil,r=>r.tiet).forEach((a,t)=>{if(a.length>1)add(a[1],'tiet','warn',`Tiết ${t} ghi ${a.length} lần trong cùng buổi`)})});
   // nhảy/trùng tiết PPCT
