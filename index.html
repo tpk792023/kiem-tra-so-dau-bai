@@ -10,6 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 :root{
   --bg:#eef2f8;--card:#fff;--ink:#142039;--muted:#5d6880;--line:#d6deeb;
@@ -152,9 +153,11 @@ mark{background:var(--warn-soft);color:var(--err);border-radius:3px;padding:0 2p
     <select id="fGv"><option value="">Tất cả giáo viên</option></select>
     <select id="fLv"><option value="">Mọi mức</option><option value="err">Chỉ lỗi</option><option value="warn">Chỉ cần xem lại</option></select>
     <input type="text" id="fText" placeholder="Tìm…">
-    <button id="btnExport">Xuất Excel</button><button id="btnPrint">In</button>
+    <button id="btnExport">Xuất Excel</button><button id="btnWord" title="Chọn 1 giáo viên: 1 file Word. Tất cả giáo viên: file nén, mỗi giáo viên 1 file Word">Xuất Word gửi GV</button><button id="btnPrint">In</button>
   </div>
+  <div class="row noprint small muted" style="margin:-4px 0 10px">Phiếu Word: người kiểm tra <input type="text" id="wNguoi" style="width:180px" placeholder="VD: Tống Phước Khải"> chức vụ <input type="text" id="wChucVu" style="width:150px" placeholder="VD: Tổ trưởng"> hạn sửa <input type="text" id="wHan" style="width:110px" placeholder="VD: 20/11/2026"></div>
   <div class="tbl-wrap"><table><thead><tr><th>Mức</th><th>Lớp</th><th>Tuần</th><th>Ngày</th><th>Tiết</th><th>Môn</th><th>Giáo viên</th><th>Loại</th><th>Chi tiết</th></tr></thead><tbody id="tbody"></tbody></table></div>
+  <details style="margin-top:12px"><summary>Thống kê theo tuần và loại lỗi</summary><div id="thongKe" class="row" style="align-items:flex-start;gap:16px"></div></details>
   <details style="margin-top:12px"><summary>Tổng hợp theo giáo viên</summary><div class="tbl-wrap" style="max-height:none"><table><thead><tr><th>Giáo viên</th><th>Số tiết đã ghi</th><th>Lỗi</th><th>Cần xem lại</th><th>Chủ yếu</th></tr></thead><tbody id="gvBody"></tbody></table></div></details>
 </section>
 </main>
@@ -441,7 +444,9 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
     r.tot=P==null?null:P+K+U;r.P=P;r.K=K;r.U=U;
     // điểm
     if(r.hasDiem){const d=toNum(r.diemRaw);
-      if(isBlank(r.diemRaw))add(r,'diem','err','Chưa cho điểm tiết học');
+      if(isBlank(r.diemRaw)){// Tiểu học: chỉ xếp loại (Tốt/Khá/Đạt…), không cho điểm số
+        if(!r.loai)add(r,'diem','err',+r.khoi>=1&&+r.khoi<=5?'Chưa xếp loại tiết học':'Chưa cho điểm tiết học');
+        else if(!['Tốt','Khá','Đạt','Yếu'].includes(normLoai(r.loai)))add(r,'diem','warn',`Xếp loại tiết học “${r.loai}” không đúng mức (Tốt/Khá/Đạt/Chưa đạt)`)}
       else if(d==null||d<0||d>S.max)add(r,'diem','err',`Điểm “${r.diemRaw}” không hợp lệ (thang 0–${S.max})`);
       else{if(P!=null){const ded=Math.min(S.maxDed,P*S.dP+K*S.dK+U*S.dU);const cap=S.max-ded;
           if(d>cap+1e-9){const parts=[];if(P)parts.push(P+' có phép');if(K)parts.push(K+' không phép');if(U)parts.push(U+' chưa rõ phép');
@@ -564,7 +569,7 @@ function showResult(){$('result').hidden=false;
   const fill=(id,vals,first)=>{const cur=$(id).value;$(id).innerHTML=`<option value="">${first}</option>`+vals.map(v=>`<option${v===cur?' selected':''}>${esc(v)}</option>`).join('')};
   fill('fLop',[...new Set(ISSUES.map(i=>i.lop))].sort((a,b)=>a.localeCompare(b,'vi',{numeric:true})),'Tất cả lớp');
   fill('fGv',[...new Set(ISSUES.map(i=>i.gv).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'vi')),'Tất cả giáo viên');
-  renderRows();
+  renderRows();renderThongKe();
   $('gvBody').innerHTML=Object.entries(STATS.gv).sort((a,b)=>b[1].err-a[1].err||b[1].warn-a[1].warn).map(([g,s])=>{const top=Object.entries(s.t).sort((a,b)=>b[1]-a[1]).slice(0,2).map(([k,c])=>TYPES[k]+' ('+c+')').join(', ');
     return `<tr><td>${esc(g)}</td><td>${s.n}</td><td>${s.err?'<span class="lv-err">'+s.err+'</span>':'0'}</td><td>${s.warn?'<span class="lv-warn">'+s.warn+'</span>':'0'}</td><td>${esc(top)}</td></tr>`}).join('');
   $('result').scrollIntoView({behavior:'smooth'})}
@@ -581,7 +586,47 @@ $('btnExport').onclick=()=>{const arr=filtered();const ws=XLSX.utils.aoa_to_shee
   ws['!cols']=[{wch:8},{wch:7},{wch:9},{wch:11},{wch:5},{wch:12},{wch:20},{wch:14},{wch:80},{wch:20},{wch:6}];
   const ws2=XLSX.utils.aoa_to_sheet([['Giáo viên','Số tiết','Lỗi','Cần xem lại'],...Object.entries(STATS.gv).map(([g,s])=>[g,s.n,s.err,s.warn])]);
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Lỗi sổ đầu bài');XLSX.utils.book_append_sheet(wb,ws2,'Theo giáo viên');
+  const tk=thongKe();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Tuần','Lỗi','Cần xem lại','Tổng'],...tk.tuan.map(r=>[r.k,r.err,r.warn,r.err+r.warn])]),'Theo tuần');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Loại','Lỗi','Cần xem lại','Tổng'],...tk.loai.map(r=>[r.k,r.err,r.warn,r.err+r.warn])]),'Theo loại');
   XLSX.writeFile(wb,'Kiem-tra-so-dau-bai.xlsx')};
+
+/* ================= thống kê theo tuần, loại lỗi ================= */
+function thongKe(){const by=f=>{const m={};ISSUES.forEach(i=>{const k=f(i)||'(không rõ)';const o=m[k]=m[k]||{k,err:0,warn:0};o[i.lv]++});return Object.values(m)};
+  const wn=k=>+(String(k).match(/\d+/)||[999])[0];
+  return {tuan:by(i=>i.tuan).sort((a,b)=>wn(a.k)-wn(b.k)),loai:by(i=>TYPES[i.type]).sort((a,b)=>b.err+b.warn-a.err-a.warn)}}
+function renderThongKe(){const tk=thongKe();
+  const tb=(title,rows)=>`<div class="tbl-wrap" style="max-height:none;flex:1;min-width:260px"><table><thead><tr><th>${title}</th><th>Lỗi</th><th>Cần xem lại</th><th>Tổng</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.k)}</td><td>${r.err?'<span class="lv-err">'+r.err+'</span>':0}</td><td>${r.warn?'<span class="lv-warn">'+r.warn+'</span>':0}</td><td><b>${r.err+r.warn}</b></td></tr>`).join('')}</tbody></table></div>`;
+  $('thongKe').innerHTML=tb('Tuần',tk.tuan)+tb('Loại lỗi',tk.loai)}
+
+/* ================= phiếu Word gửi từng giáo viên ================= */
+['wNguoi','wChucVu','wHan'].forEach(id=>{$(id).value=store.get(id,'');$(id).onchange=()=>store.set(id,$(id).value.trim())});
+function phieuWord(gv,arr){arr=arr.slice().sort((a,b)=>a.lop.localeCompare(b.lop,'vi',{numeric:true})||(a.sortD-b.sortD)||String(a.tiet).localeCompare(String(b.tiet),'vi',{numeric:true}));
+  const e=arr.filter(i=>i.lv==='err').length,w=arr.length-e;const tuans=[...new Set(arr.map(i=>i.tuan).filter(Boolean))].sort((a,b)=>(+(a.match(/\d+/)||[0])[0])-(+(b.match(/\d+/)||[0])[0]));
+  const d=new Date(),ngay=`ngày ${d.getDate()} tháng ${d.getMonth()+1} năm ${d.getFullYear()}`;const nguoi=$('wNguoi').value.trim(),cv=$('wChucVu').value.trim(),han=$('wHan').value.trim();
+  const td='border:1px solid #000;padding:3pt 4pt;vertical-align:top';
+  const rows=arr.map((i,k)=>`<tr><td style="${td};text-align:center">${k+1}</td><td style="${td};text-align:center;${i.lv==='err'?'color:#c00;font-weight:bold':'color:#a60'}">${i.lv==='err'?'Lỗi':'Xem lại'}</td><td style="${td};text-align:center">${esc(i.lop)}</td><td style="${td};text-align:center">${esc(String(i.tuan).replace(/^Tuần\s*/,''))}</td><td style="${td};text-align:center">${esc(i.ngay)}</td><td style="${td};text-align:center">${esc(i.tiet)}</td><td style="${td}">${esc(i.mon)}</td><td style="${td}">${TYPES[i.type]}</td><td style="${td}">${esc(i.msg).replace(/“([^”]*)”/g,'“<b>$1</b>”')}</td></tr>`).join('');
+  const th=s=>`<th style="${td};background:#dde6f5;text-align:center">${s}</th>`;
+  return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>Phiếu kiểm tra sổ đầu bài</title>
+<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom></w:WordDocument></xml><![endif]-->
+<style>@page Section1{size:841.9pt 595.3pt;mso-page-orientation:landscape;margin:42pt 42pt 42pt 56pt}div.Section1{page:Section1}body{font-family:"Times New Roman";font-size:13pt}table{border-collapse:collapse;width:100%}td,th{font-size:12pt}</style></head><body><div class="Section1">
+<table style="width:100%"><tr><td style="text-align:center;width:45%;border:none"><b>TRƯỜNG TH &amp; THCS ĐA PHƯỚC</b></td><td style="text-align:center;border:none"><b>CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM</b><br><b><u>Độc lập - Tự do - Hạnh phúc</u></b><br><i>Đa Phước, ${ngay}</i></td></tr></table>
+<p style="text-align:center;font-size:15pt;margin:14pt 0 2pt"><b>PHIẾU THÔNG BÁO KẾT QUẢ KIỂM TRA SỔ ĐẦU BÀI</b></p>
+<p style="text-align:center;margin:0 0 10pt">${tuans.length?(tuans.length>1?'Từ '+esc(tuans[0])+' đến '+esc(tuans[tuans.length-1]):esc(tuans[0])):''}</p>
+<p style="margin:2pt 0">Kính gửi: thầy/cô <b>${esc(gv)}</b></p>
+<p style="margin:2pt 0">Qua kiểm tra sổ đầu bài điện tử trên vnEdu, phát hiện <b>${arr.length}</b> nội dung cần chỉnh sửa (<b style="color:#c00">${e} lỗi</b>, <b>${w} chỗ cần xem lại</b>) như sau:</p>
+<table><thead><tr>${th('STT')}${th('Mức')}${th('Lớp')}${th('Tuần')}${th('Ngày')}${th('Tiết')}${th('Môn')}${th('Loại')}${th('Nội dung cần sửa')}</tr></thead><tbody>${rows}</tbody></table>
+<p style="margin:10pt 0 2pt">Đề nghị thầy/cô kiểm tra và chỉnh sửa trên vnEdu${han?' trước ngày <b>'+esc(han)+'</b>':''}. Mục “Xem lại” là chỗ phần mềm nghi ngờ, nếu đã đúng thì không cần sửa.</p>
+<table style="width:100%;margin-top:14pt"><tr><td style="border:none;width:50%;text-align:center"><b>GIÁO VIÊN</b><br><i>(Ký, ghi rõ họ tên)</i><br><br><br><br>${esc(gv)}</td><td style="border:none;text-align:center"><b>NGƯỜI KIỂM TRA</b>${cv?'<br>'+esc(cv):''}<br><i>(Ký, ghi rõ họ tên)</i><br><br><br><br>${esc(nguoi)}</td></tr></table>
+</div></body></html>`}
+const tenFile=s=>strip(s).replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'')||'GV';
+function taiFile(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000)}
+const wordBlob=html=>new Blob(['﻿',html],{type:'application/msword'});
+$('btnWord').onclick=async()=>{const arr=filtered().filter(i=>i.gv);if(!arr.length){alert('Không có lỗi nào của giáo viên theo bộ lọc hiện tại.');return}
+  const gvs=[...new Set(arr.map(i=>i.gv))].sort((a,b)=>a.localeCompare(b,'vi'));
+  if(gvs.length===1){taiFile(wordBlob(phieuWord(gvs[0],arr)),'Phieu-kiem-tra-SDB_'+tenFile(gvs[0])+'.doc');return}
+  if(typeof JSZip==='undefined'){alert('Chưa tải được thư viện nén file. Thầy cô chọn từng giáo viên ở ô lọc rồi bấm Xuất Word.');return}
+  const z=new JSZip();gvs.forEach(g=>z.file('Phieu-kiem-tra-SDB_'+tenFile(g)+'.doc',wordBlob(phieuWord(g,arr.filter(i=>i.gv===g)))));
+  taiFile(await z.generateAsync({type:'blob'}),`Phieu-kiem-tra-SDB_${gvs.length}-giao-vien.zip`)};
 
 /* ================= dữ liệu mẫu ================= */
 $('btnSample').onclick=()=>{
