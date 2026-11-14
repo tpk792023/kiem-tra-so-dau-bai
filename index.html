@@ -346,7 +346,7 @@ function parseVang(raw){if(isBlank(raw))return null;if(typeof raw==='number')ret
 function parseCount(v){if(isBlank(v))return null;if(typeof v==='number')return v;const m=String(v).match(/\d+/);if(m&&/^\s*\d+\s*$/.test(String(v)))return +m[0];return countNames(v)}
 function loaiOf(d){return d>=S.tot?'Tốt':d>=S.kha?'Khá':d>=S.tb?'Đạt':'Yếu'}
 // Nhận xét có nêu lý do trừ điểm (HS không làm bài, nói chuyện, chưa thuộc bài…)
-const LYDO_TRU=/\b(chua|khong|con|mot so|1 so|vai|it|thieu|quen|noi chuyen|trat tu|on ao|lam viec rieng|lam rieng|dua|gion|lo la|luoi|ngu gat|ngu|tre|muon|tru|nhac nho|nhac|vi pham|phe binh|can (co gang|chu y|tap trung|nghiem tuc|khac phuc|chuan bi|hoc)|thu dong|tram|mat tap trung|xao nhang|an qua|danh nhau|cai nhau|vo le|hon lao)\b|\b\d+\s*(em|hs|hoc sinh|ban)\b/;
+const LYDO_TRU=/\b(chua|khong|con|mot so|1 so|vai|it|thieu|quen|noi chuyen|trat tu|on ao|lam viec rieng|lam rieng|dua|gion|lo la|luoi|ngu gat|ngu|tre|muon|tru|nhac nho|nhac|vi pham|phe binh|can (co gang|chu y|tap trung|nghiem tuc|khac phuc|chuan bi|hoc)|thu dong|tram|mat tap trung|xao nhang|an qua|danh nhau|cai nhau|vo le|hon lao|hoc yeu|con yeu|yeu kem|kem|han che|choc pha|pha phach|pha roi|kiem diem|canh cao|ue oai|ghi ten|bi phat|lam cham|cham chap|cham tre|chay nhay|xin ra ngoai|tu y|bo ra|quay cop|copy|chep bai ban|mat ve sinh|khong nghiem|thieu nghiem tuc|chu quan|so sai|cau tha|dien thoai|ngoi khong dung)\b|\b\d+\s*(em|hs|hoc sinh|ban)\b/;
 function normLoai(s){const n=norm(s);if(!n)return '';if(/^(tot|t|a|gioi)$/.test(n))return 'Tốt';if(/^(kha|k|b)$/.test(n))return 'Khá';if(/^(tb|trung binh|c|dat)$/.test(n))return 'Đạt';if(/^(yeu|y|d|kem|chua dat)$/.test(n))return 'Yếu';return s}
 
 function buildRecords(){const recs=[],phe={},pheSeen={},cn={},cnSeen={},ktth={};let idx=0;
@@ -385,6 +385,14 @@ function canonTen(s){let n=norm(cleanTen(s)).replace(/\btiep theo\b/g,' ').repla
   n=n.replace(/\b(kt)(gk|ck|hk)/g,'$1 $2').replace(/\b(gk|ck|hk)(\d)\b/g,'$1 $2').replace(/\bkt(\d)\b/g,'kt $1');
   return n.split(' ').map(w=>w in ABBR_TEN?ABBR_TEN[w]:w).join(' ').replace(/\s+/g,' ').trim()}
 function bestSim(a,b){return Math.max(sim(a,b),sim(cleanTen(a),cleanTen(b)))}
+// tên bài ghi tương tự / đồng nghĩa coi là đúng
+const SYN_TEN=[[/\b(on luyen|he thong hoa|tong on)\b/g,'on tap'],[/\b(bai tap|giai bai tap|thuc hanh giai)\b/g,'luyen tap'],[/\b(danh gia|thi)\b/g,'kiem tra'],
+  [/\b(sua bai|tra bai|nhan xet bai)\b/g,'chua bai'],[/\b(tim hieu|khai niem ve|gioi thieu)\b/g,' '],[/\b(hoa hoc|vat li|vat ly|sinh hoc)\b/g,' ']];
+const STOP_TEN=new Set('bai tiet phan chu de chuong cua va voi cac nhung mot trong the nao gi la co ve cho theo tiep tt'.split(' '));
+function tenWords(s){let n=' '+canonTen(s)+' ';SYN_TEN.forEach(([re,v])=>n=n.replace(re,' '+v+' '));return n.split(/\s+/).filter(w=>w&&!STOP_TEN.has(w)&&!/^\d+$/.test(w))}
+function tenGiong(a,b){const ca=canonTen(a),cb=canonTen(b);if(ca===cb||(ca.length>=4&&cb.includes(ca))||(cb.length>=4&&ca.includes(cb)))return true;
+  if(bestSim(a,b)>=0.6)return true;const A=new Set(tenWords(a)),B=new Set(tenWords(b));if(!A.size||!B.size)return false;
+  let x=0;A.forEach(w=>{if(B.has(w))x++});return x/Math.min(A.size,B.size)>=0.5}
 
 let ISSUES=[],STATS={};
 // tiết sinh hoạt lớp: GV ghi tên bài tự do (sơ kết tuần, kiểm điểm…), không so tên bài
@@ -406,12 +414,9 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
     if(r.ppct===0&&!ngoai)add(r,'tenbai','err','Tiết PPCT ghi số 0 (chỉ tiết củng cố/bổ sung kiến thức, More Exercises mới ghi 0)');
     if(ngoai&&r.ppct!=null&&r.ppct!==0)add(r,'tenbai','warn',`Tiết củng cố/bổ sung kiến thức (More Exercises) nhưng ghi tiết PPCT ${r.ppct} (phải ghi 0)`);
     if(usePpct&&r.ten&&r.ppct&&!ngoai&&!isSinhHoat(r.mon)){const ref=ppctLookup(r.mon,r.khoi,r.ppct);
-      if(ref){const sm=bestSim(r.ten,ref);const same=canonTen(r.ten)===canonTen(ref);
-        const a=cleanTen(r.ten).toLowerCase(),b=cleanTen(ref).toLowerCase();const part=!same&&a.length>=6&&b.includes(a.replace(/[.;,\s]+$/,''));
-        if(part){add(r,'tenbai','warn',`Tên bài ghi chưa đủ theo PPCT tiết ${r.ppct}: “${r.ten}” – PPCT: “${ref}”`)}else
+      if(ref){const same=canonTen(r.ten)===canonTen(ref);
         if(same&&cleanTen(r.ten).toLowerCase()!==cleanTen(ref).toLowerCase()&&strip(cleanTen(r.ten)).toLowerCase()===strip(cleanTen(ref)).toLowerCase())add(r,'tenbai','warn',`Tên bài sai dấu so với PPCT tiết ${r.ppct}: “${r.ten}” – PPCT: “${ref}”`);
-        else if(!same&&sm<0.6)add(r,'tenbai','err',`Tên bài không đúng PPCT tiết ${r.ppct}: ghi “${r.ten}” – PPCT là “${ref}”`);
-        else if(!same&&sm<0.85)add(r,'tenbai','warn',`Tên bài hơi khác PPCT tiết ${r.ppct}: ghi “${r.ten}” – PPCT là “${ref}”`)}
+        else if(!same&&!tenGiong(r.ten,ref))add(r,'tenbai','err',`Tên bài không đúng PPCT tiết ${r.ppct}: ghi “${r.ten}” – PPCT là “${ref}”`)} // ghi tương tự, đồng nghĩa, rút gọn: được
       else if(ppctHasMon(r.mon,r.khoi))add(r,'tenbai','warn',`Tiết PPCT ${r.ppct} không có trong PPCT môn ${r.mon} khối ${r.khoi}`)}
     // nhận xét
     if(r.hasNx&&!r.nx)add(r,'nx','err','Chưa ghi nhận xét tiết học'); // nhận xét ngắn như “Tốt” vẫn được
@@ -445,7 +450,7 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
   const tkbMiss=new Set();
   {const wdOf=r=>{if(r.day&&r.day.date){const g=r.day.date.getDay();return g===0?8:g+1}const m=String(r.day&&r.day.label||'').match(/th[ứu]\s*(\d)/i);return m?+m[1]:(/cn|chu nhat/.test(norm(r.day&&r.day.label))?8:null)};
    const slot=new Map(),daysWithData=new Set(),weeksOf={};
-   ALL.forEach(r=>{if(r.tuanNum==null||r.tiet==null||r.extra)return;const wd=wdOf(r);if(wd==null)return;r._wd=wd;
+   ALL.forEach(r=>{if(r.tuanNum==null||r.tiet==null)return;const wd=wdOf(r);if(wd==null)return;r._wd=wd;if(r.extra)return; // tiết ghi thêm (dạy bù) vẫn dùng để xem PPCT
      const k=r.lop+'|'+r.tuanNum+'|'+wd+'|'+r.buoi+'|'+r.tiet;if(!r.empty)slot.set(k,r);else if(!slot.has(k))slot.set(k,null);
      (weeksOf[r.lop]=weeksOf[r.lop]||new Set()).add(r.tuanNum);if(!r.empty)daysWithData.add(r.tuanNum+'|'+wd)});
    // a) có TKB thầy nạp cho tuần đó: so với TKB
@@ -476,14 +481,18 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
    cand.forEach(c=>{if(!c.tw)return; // phải có trong sổ tuần trước
      if(hasTkb.has(c.lop+'|'+c.w)&&!c.tk)return; // có TKB cho tuần này thì TKB cũng phải có tiết đó
      const pos=ord(c.w,c.wd,c.buoi,c.tiet);const gk=lastW(c.gv);
-     const pool=ALL.filter(r=>r.lop===c.lop&&!r.empty&&r.ppct>0&&r._wd!=null&&!r.extra&&r.tuanNum!=null&&!isNgoaiPpct(r.ten)&&
+     const pool=ALL.filter(r=>r.lop===c.lop&&!r.empty&&r.ppct>0&&r._wd!=null&&r.tuanNum!=null&&!isNgoaiPpct(r.ten)&&
        (c.somon?monKey(r.mon)===monKey(c.somon):subjCode(r.mon)===subjCode(c.mon))&&(!gk||lastW(r.gv)===gk));
-     let hit=null;
+     let hit=null,cho=null;
      [...new Set(pool.map(r=>monKey(r.mon)))].forEach(mk=>{if(hit)return;const g=pool.filter(r=>monKey(r.mon)===mk);
-       let pr=null,nx=null;g.forEach(r=>{const o=ord(r.tuanNum,r._wd,r.buoi,r.tiet);if(o<pos&&(!pr||o>pr.o))pr={r,o};if(o>pos&&(!nx||o<nx.o))nx={r,o}});
-       if(pr&&nx&&nx.r.ppct>pr.r.ppct+1)hit={pr:pr.r,nx:nx.r}});
-     if(!hit)return;
+       let pr=null,nx=null;g.forEach(r=>{const o=ord(r.tuanNum,r._wd,r.buoi,r.extra?r.tiet+0.5:r.tiet);if(o<pos&&(!pr||o>pr.o))pr={r,o};if(o>pos&&(!nx||o<nx.o))nx={r,o}});
+       if(pr&&nx&&nx.r.ppct>pr.r.ppct+1)hit={pr:pr.r,nx:nx.r};else if(pr&&!nx&&!cho)cho=pr.r});
      let ngay='';if(monday[c.w]){const d=new Date(monday[c.w]);d.setDate(d.getDate()+c.wd-2);ngay=fmt(d)}
+     // chưa có tiết nào sau đó (chưa lấy sổ tuần sau): nhắc xem tuần sau có tiếp tục PPCT hay dạy bù không
+     if(!hit){if(cho){tkbMiss.add(c.lop+'|'+ngay+'|'+c.buoi+'|'+c.tiet);
+       ISSUES.push({lop:c.lop,tuan:'Tuần '+c.w,ngay,tiet:c.tiet,mon:cho.mon,gv:c.gv||cho.gv,type:'tiet',lv:'warn',
+         msg:`Có thể chưa ghi sổ tiết ${c.tiet} buổi ${c.buoi.toLowerCase()} ${c.wd===8?'Chủ nhật':'thứ '+c.wd} — theo ${c.why.join('; ')}; tiết ${cho.mon} gần nhất là PPCT ${cho.ppct}. Lấy thêm sổ tuần sau để xem có dạy tiếp tiết ${cho.ppct+1} (dạy bù, dạy 2 tiết trong tuần) hay bị nhảy tiết`,sortD:ngay?parseDay(ngay).date.getTime():0,idx:-1})}
+       return}
      tkbMiss.add(c.lop+'|'+ngay+'|'+c.buoi+'|'+c.tiet);const gv=c.gv||hit.nx.gv;
      ISSUES.push({lop:c.lop,tuan:'Tuần '+c.w,ngay,tiet:c.tiet,mon:hit.nx.mon,gv,type:'tiet',lv:'err',
        msg:`Chưa ghi sổ tiết ${c.tiet} buổi ${c.buoi.toLowerCase()} ${c.wd===8?'Chủ nhật':'thứ '+c.wd} — theo ${c.why.join('; ')}; PPCT ${hit.nx.mon} nhảy từ tiết ${hit.pr.ppct} lên ${hit.nx.ppct}`,sortD:ngay?parseDay(ngay).date.getTime():0,idx:-1})})}
@@ -505,7 +514,7 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
   // so với tiết liền trước trong cùng buổi: tăng số vắng mà nhận xét không chú thích (xin về, tên HS…) thì báo lỗi
   const vNames=r=>{const s=String(r.vangRaw??'');const i=s.search(/[–:-]\s*\D/);const tail=s.replace(/^\s*v[ắa]ng\s*:?\s*\d+\s*[–-]?/i,'');
     return tail.split(/[,;\n]/).map(x=>x.replace(/\(\s*[PK]\s*\)/gi,'').trim()).filter(x=>x&&!/^\d+$/.test(x))};
-  const NOTE=/\b(xin (ve|phep|nghi)|ve som|ra ve|cho ve|phu huynh|ruoc|don ve|benh|om|bi dau|dau bung|dau dau|sot|met|y te|kham|di (thi|tap|hop|kham)|doi tuyen|tap huan|bo tiet|bo ve|tron tiet|nghi)\b/;
+  const NOTE=/\b(xin (ve|phep|nghi)|ve som|ra ve|cho ve|phu huynh|ruoc|don ve|benh|om|bi dau|dau bung|dau dau|sot|met|y te|kham|di (thi|tap|hop|kham)|doi tuyen|tap huan|bo tiet|bo ve|tron tiet|nghi|di ve|ve nha|ra ngoai|xuong (y te|phong)|boi duong|hsg|hoc sinh gioi|van nghe|the thao|hoi thi|hoi khoe|cong tac|tham gia|tai nan|nhap vien|cap cuu|tiem|chich|cam|bi ho|ho sot|dau (rang|mat|chan|tay|bung|dau)|choang|xiu|ngat|di tre|vao tre|vao lop tre|tre|muon|vang mat|co mat|da den|den lop)\b/;
   group(live.filter(r=>r.tot!=null&&r.day&&r.tiet!=null),r=>r.lop+'|'+r.day.key+'|'+r.buoi).forEach(arr=>{
     arr.sort((a,b)=>a.tiet-b.tiet||a.idx-b.idx);
     for(let i=1;i<arr.length;i++){const p=arr[i-1],r=arr[i];if(r.tot===p.tot)continue;
@@ -519,7 +528,7 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
   if(!usePpct)group(live.filter(r=>r.ppct&&r.ten&&r.mon&&!isNgoaiPpct(r.ten)&&!isSinhHoat(r.mon)),r=>r.khoi+'|'+monKey(r.mon)+'|'+r.ppct).forEach(arr=>{const names={};arr.forEach(r=>{const k=canonTen(r.ten);(names[k]=names[k]||[]).push(r)});
     const ks=Object.keys(names);if(ks.length<2)return;ks.sort((a,b)=>names[b].length-names[a].length);const main=names[ks[0]][0].ten;
     const mk=canonTen(main);
-    ks.slice(1).forEach(k=>names[k].forEach(r=>{if(k.includes(mk)||mk.includes(k)||bestSim(r.ten,main)>=0.6)return;add(r,'tenbai','warn',`Tiết PPCT ${r.ppct} lớp ${r.lop} ghi “${r.ten}”, các lớp khác ghi “${main}”`)}))});
+    ks.slice(1).forEach(k=>names[k].forEach(r=>{if(k.includes(mk)||mk.includes(k)||tenGiong(r.ten,main))return;add(r,'tenbai','warn',`Tiết PPCT ${r.ppct} lớp ${r.lop} ghi “${r.ten}”, các lớp khác ghi “${main}”`)}))});
   // phê sổ theo tuần
   Object.keys(pheSeen).forEach(k=>{if(!phe[k]){const [lop,wk]=k.split('|');ISSUES.push({lop,tuan:tuanLb(wk),ngay:'',tiet:'',mon:'',gv:'',type:'phe',lv:'err',msg:`BGH chưa phê sổ ${wk}`,sortD:0,idx:-1})}});
   Object.keys(cnSeen).forEach(k=>{if(!cn[k]){const [lop,wk]=k.split('|');ISSUES.push({lop,tuan:tuanLb(wk),ngay:'',tiet:'',mon:'',gv:'',type:'phe',lv:'err',msg:`GVCN chưa nhận xét ${wk}`,sortD:0,idx:-1})}});
