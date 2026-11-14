@@ -88,7 +88,7 @@ document.body.appendChild(P);
 function $(i){return P.querySelector('#'+i)}
 function status(s){$('kst').textContent=s}
 var lc=combo('cboLopHoc'),wc=combo('cboTuanHoc');
-if(!lc||!wc){status('Thầy cô mở mục Sổ đầu bài → Chi tiết sổ đầu bài trước, rồi bấm lại nút.');}
+if(!lc||!wc){status('Để lấy sổ đầu bài: mở mục Sổ đầu bài → Chi tiết sổ đầu bài rồi bấm lại nút. (Phần điểm cuối kì bên dưới dùng được ngay.)');}
 else{$('kt1').value=$('kt2').value=wc.getValue();lc.store.each(function(r){var o=document.createElement('option');o.value=r.get(lc.valueField);o.textContent=r.get(lc.displayField);$('kl').appendChild(o)});
   $('kl').value=String(lc.getValue());status('Đã gom '+count()+' sổ.')}
 var stop=false;
