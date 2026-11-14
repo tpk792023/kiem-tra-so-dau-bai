@@ -238,9 +238,9 @@ $('file').onchange=e=>{loadFiles([...e.target.files]);e.target.value=''};
 ['dragover','dragenter'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('on')}));
 ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('on')}));
 drop.addEventListener('drop',e=>loadFiles([...e.dataTransfer.files]));
-$('btnPaste').onclick=()=>{const t=$('paste').value;if(!t.trim())return;const aoa=t.replace(/\r/g,'').split('\n').map(l=>l.split('\t'));
+$('btnPaste').onclick=()=>{const t=tachKySo($('paste').value);if(!t.trim())return;const aoa=t.replace(/\r/g,'').split('\n').map(l=>l.split('\t'));
   addTable('Bảng dán '+(TABLES.length+1),aoa,$('pasteLop').value.trim().toUpperCase());$('paste').value=''};
-$('btnClear').onclick=()=>{TABLES=[];renderTables();renderMap();$('result').hidden=true};
+$('btnClear').onclick=()=>{TABLES=[];KYSO=[];renderTables();renderMap();$('result').hidden=true};
 
 function renderMap(){const all=[];TABLES.forEach(t=>t.labels.forEach(l=>{if(l&&!all.includes(l))all.push(l)}));
   const auto=TABLES[0]?autoMap(TABLES[0].labels):{};
@@ -547,6 +547,11 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
     const ks=Object.keys(names);if(ks.length<2)return;ks.sort((a,b)=>names[b].length-names[a].length);const main=names[ks[0]][0].ten;
     const mk=canonTen(main);
     ks.slice(1).forEach(k=>names[k].forEach(r=>{if(k.includes(mk)||mk.includes(k)||tenGiong(r.ten,main))return;add(r,'tenbai','warn',`Tiết PPCT ${r.ppct} lớp ${r.lop} ghi “${r.ten}”, các lớp khác ghi “${main}”`)}))});
+  // ký số sổ đầu bài (Ký số PDF trên vnEdu): GVBM chưa ký môn mình; GVBM ký đủ mà GVCN chưa ký; GVCN ký rồi mà BGH chưa ký
+  const gvcnOf=lop=>{const c={};ALL.forEach(r=>{if(r.gv&&bo(r.lop)===bo(lop)&&isSinhHoat(r.mon))c[r.gv]=(c[r.gv]||0)+1});return Object.keys(c).sort((a,b)=>c[b]-c[a])[0]||''};
+  const lopTen=lop=>(ALL.find(r=>bo(r.lop)===bo(lop))||{}).lop||lop;
+  KYSO.forEach(k=>ISSUES.push({lop:lopTen(k.lop),tuan:'Tuần '+k.tuan,ngay:'',tiet:'',mon:k.mon||'',gv:k.gv||(k.vaitro==='GVCN'?gvcnOf(k.lop):''),type:'phe',lv:'err',
+    msg:k.vaitro==='GVBM'?`Chưa ký số sổ đầu bài tuần ${k.tuan} (môn ${k.mon})`:k.vaitro==='GVCN'?`GVCN chưa ký số sổ đầu bài tuần ${k.tuan} (GVBM đã ký đủ)`:`BGH chưa ký số sổ đầu bài tuần ${k.tuan}`,sortD:0,idx:-1}));
   // phê sổ theo tuần
   Object.keys(pheSeen).forEach(k=>{if(!phe[k]){const [lop,wk]=k.split('|');ISSUES.push({lop,tuan:tuanLb(wk),ngay:'',tiet:'',mon:'',gv:'',type:'phe',lv:'err',msg:`BGH chưa phê sổ ${wk}`,sortD:0,idx:-1})}});
   Object.keys(cnSeen).forEach(k=>{if(!cn[k]){const [lop,wk]=k.split('|');ISSUES.push({lop,tuan:tuanLb(wk),ngay:'',tiet:'',mon:'',gv:'',type:'phe',lv:'err',msg:`GVCN chưa nhận xét ${wk}`,sortD:0,idx:-1})}});
@@ -663,9 +668,13 @@ const BM_CODE="javascript:(function(){var s=document.createElement('script');s.s
 $('bm').href=BM_CODE;$('bmCode').value=BM_CODE;
 if(location.protocol==='file:')$('bmNote').textContent='Nút “Lấy sổ đầu bài” chỉ dùng được khi mở trang này qua mạng (GitHub Pages), không mở bằng file trên máy.';
 $('btnCopyBm').onclick=async()=>{try{await navigator.clipboard.writeText(BM_CODE)}catch(e){$('bmCode').select();document.execCommand('copy')}$('btnCopyBm').textContent='Đã chép ✓'};
-function loadTsv(t){const aoa=t.replace(/\r/g,'').split('\n').filter(l=>l.trim()).map(l=>l.split('\t'));
+// trạng thái ký số (nút lấy sổ gửi kèm sau dòng #KYSO)
+let KYSO=[];
+function bo(s){return String(s||'').replace(/[\s\/.-]/g,'').toUpperCase()}
+function tachKySo(t){t=String(t).replace(/\r/g,'');const i=t.indexOf('\n#KYSO\n');if(i<0)return t;try{const a=JSON.parse(t.slice(i+7).trim());if(Array.isArray(a))KYSO=a}catch(e){}return t.slice(0,i)}
+function loadTsv(t,ky){if(Array.isArray(ky))KYSO=ky;t=tachKySo(t);const aoa=t.replace(/\r/g,'').split('\n').filter(l=>l.trim()).map(l=>l.split('\t'));
   addTable('Từ vnEdu ('+new Set(aoa.slice(1).map(r=>r[0])).size+' lớp)',aoa,'');runCheck()}
-window.addEventListener('message',e=>{if(e.source!==window.opener||!e.data||e.data.type!=='ksdb-data'||typeof e.data.tsv!=='string')return;loadTsv(e.data.tsv)});
+window.addEventListener('message',e=>{if(e.source!==window.opener||!e.data||e.data.type!=='ksdb-data'||typeof e.data.tsv!=='string')return;loadTsv(e.data.tsv,e.data.ky)});
 if(window.opener)try{window.opener.postMessage('ksdb-ready','*')}catch(e){}
 $('btnClip').onclick=async()=>{let t='';try{t=await navigator.clipboard.readText()}catch(e){}
   if(!t||!/Tiết PPCT/.test(t)){const d=$('paste').closest('details');d.open=true;$('paste').focus();
