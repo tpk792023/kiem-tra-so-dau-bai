@@ -16,7 +16,8 @@ function grab(){
     if(!td.getAttribute('buoi'))return; // ô vắng cũng có thuộc tính tiet
     var c=[],n=td.nextElementSibling;while(n){c.push(n);n=n.nextElementSibling}
     var thu=td.getAttribute('thu');var vc=c[3];var names=vc?[].map.call(vc.querySelectorAll('p'),txt).filter(Boolean):[];
-    var sl=td.getAttribute('soluong_nghi');var vt=txt(vc);var m=vt.match(/V[ắa]ng:\s*(\d+)/i);var tong=m?m[1]:(sl!==''&&sl!=null?sl:''); // lấy số vắng hiện trên sổ ("Vắng: N"), thuộc tính ẩn soluong_nghi có lúc sai    var P=0,K=0;names.forEach(function(s){if(/\(\s*P\s*\)/i.test(s))P++;else if(/\(\s*K\s*\)/i.test(s))K++});
+    var sl=td.getAttribute('soluong_nghi');var vt=txt(vc);var m=vt.match(/V[ắa]ng:\s*(\d+)/i);var tong=m?m[1]:(sl!==''&&sl!=null?sl:''); /* lấy số vắng hiện trên sổ ("Vắng: N"), thuộc tính ẩn soluong_nghi có lúc sai */
+    var P=0,K=0;names.forEach(function(s){if(/\(\s*P\s*\)/i.test(s))P++;else if(/\(\s*K\s*\)/i.test(s))K++});
     var dx=txt(c[7]);var dm=dx.match(/^([\d.,]+)\s*\/\s*(.*)$/);
     rows.push([lop,tuan,(thu==='8'||thu==='1'?'CN':'Thứ '+thu)+' ('+(dates[thu]||'')+')',td.getAttribute('buoi')==='2'?'Chiều':'Sáng',
       td.getAttribute('tiet'),txt(c[1]),txt(c[2]),tong===''?'':('Vắng: '+tong+(names.length?' – '+names.join(', '):'')),
