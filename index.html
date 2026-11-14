@@ -437,7 +437,7 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
     else if(r.hasLoai&&!r.loai)add(r,'diem','err','Chưa xếp loại tiết học');
   }
   const live=recs.filter(r=>!r.empty);
-  // GV chưa ghi sổ: ô có trong TKB / sổ tuần trước mà tuần này trống, VÀ số tiết PPCT của môn đó bị nhảy
+  // GV chưa ghi sổ: ô có tiết ở sổ tuần trước (và ở TKB nếu có TKB cho tuần đó) mà tuần này trống, VÀ số tiết PPCT của môn đó bị nhảy
   const tkbMiss=new Set();
   {const wdOf=r=>{if(r.day&&r.day.date){const g=r.day.date.getDay();return g===0?8:g+1}const m=String(r.day&&r.day.label||'').match(/th[ứu]\s*(\d)/i);return m?+m[1]:(/cn|chu nhat/.test(norm(r.day&&r.day.label))?8:null)};
    const slot=new Map(),daysWithData=new Set(),weeksOf={};
@@ -453,14 +453,15 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
    const checked=new Set(recs.filter(r=>r.tuanNum!=null).map(r=>r.lop+'|'+r.tuanNum));
    const cand=new Map();
    const addC=(lop,w,wd,buoi,tiet,o)=>{const k=lop+'|'+w+'|'+wd+'|'+buoi+'|'+tiet;if(slot.get(k)||!daysWithData.has(w+'|'+wd))return;
-     let c=cand.get(k);if(!c){c={lop,w,wd,buoi,tiet,mon:'',somon:'',gv:'',why:[]};cand.set(k,c)}
+     let c=cand.get(k);if(!c){c={lop,w,wd,buoi,tiet,mon:'',somon:'',gv:'',why:[],tk:false,tw:false};cand.set(k,c)}if(o.src==='tkb')c.tk=true;else c.tw=true;
      if(o.somon&&!c.somon){c.somon=o.somon;c.mon=o.somon}if(o.mon&&!c.mon)c.mon=o.mon;if(o.gv&&!c.gv)c.gv=o.gv;c.why.push(o.why)};
-   checked.forEach(key=>{const [lop,ws]=key.split('|');const w=+ws;const tk=tkbFor(w);if(!tk)return;
+   const hasTkb=new Set();
+   checked.forEach(key=>{const [lop,ws]=key.split('|');const w=+ws;const tk=tkbFor(w);if(!tk)return;if(tk.cells.some(c=>c.cn===lop))hasTkb.add(key);
      tk.cells.filter(c=>c.cn===lop).forEach(c=>{const wd=c.d+2,buoi=c.s==='C'?'Chiều':'Sáng',tiet=c.p+1;
        if(norm(c.sub).startsWith('chao co')&&![1,2,3,4,5,6,7,8,9,10].some(t=>slot.get(lop+'|'+w+'|'+wd+'|'+buoi+'|'+t)))return; // lớp không học buổi đó
-       const gv=c.t?gvFull(lop,c.t):'';addC(lop,w,wd,buoi,tiet,{mon:c.sub,gv,why:`TKB từ tuần ${tk.from} là ${c.sub}${c.t?' – '+c.t:''}`})})});
+       const gv=c.t?gvFull(lop,c.t):'';addC(lop,w,wd,buoi,tiet,{src:'tkb',mon:c.sub,gv,why:`TKB từ tuần ${tk.from} là ${c.sub}${c.t?' – '+c.t:''}`})})});
    ALL.forEach(p=>{if(p.empty||p._wd==null||p.extra)return;const w=p.tuanNum+1;if(!checked.has(p.lop+'|'+w))return;
-     addC(p.lop,w,p._wd,p.buoi,p.tiet,{somon:p.mon,gv:p.gv,why:`sổ tuần ${p.tuanNum} là ${p.mon}${p.gv?' – '+p.gv:''}`})});
+     addC(p.lop,w,p._wd,p.buoi,p.tiet,{src:'tuan',somon:p.mon,gv:p.gv,why:`sổ tuần ${p.tuanNum} là ${p.mon}${p.gv?' – '+p.gv:''}`})});
    // chỉ báo khi số tiết PPCT của môn đó bị nhảy (tiết trước → tiết sau thiếu số)
    const subjCode=m=>{const n=norm(m);if(/sinh hoat|shcn|\bshl\b/.test(n))return 'SH';if(/chao co/.test(n))return 'CC';if(/trai nghiem|hdtn/.test(n))return 'HDTN';
      if(/khtn|khoa hoc tu nhien|hoa hoc|vat l|sinh hoc/.test(n))return 'KHTN';if(/lich su|dia l|ls ?dl|\bls\b|\bdl\b/.test(n))return 'LSDL';if(/ngu van|\bvan\b/.test(n))return 'VAN';
@@ -468,7 +469,9 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
      if(/gdcd|cong dan/.test(n))return 'GDCD';if(/the chat|gdtc|\btd\b|the duc/.test(n))return 'TD';if(/nghe thuat|am nhac|mi thuat|my thuat|\bnt\b/.test(n))return 'NT';
      if(/dia phuong|gddp|\bdp\b/.test(n))return 'DP';return n};
    const ord=(w,wd,buoi,t)=>w*1000+wd*100+(buoi==='Chiều'?50:0)+(+t||0);
-   cand.forEach(c=>{const pos=ord(c.w,c.wd,c.buoi,c.tiet);const gk=lastW(c.gv);
+   cand.forEach(c=>{if(!c.tw)return; // phải có trong sổ tuần trước
+     if(hasTkb.has(c.lop+'|'+c.w)&&!c.tk)return; // có TKB cho tuần này thì TKB cũng phải có tiết đó
+     const pos=ord(c.w,c.wd,c.buoi,c.tiet);const gk=lastW(c.gv);
      const pool=ALL.filter(r=>r.lop===c.lop&&!r.empty&&r.ppct>0&&r._wd!=null&&!r.extra&&r.tuanNum!=null&&!isNgoaiPpct(r.ten)&&
        (c.somon?monKey(r.mon)===monKey(c.somon):subjCode(r.mon)===subjCode(c.mon))&&(!gk||lastW(r.gv)===gk));
      let hit=null;
