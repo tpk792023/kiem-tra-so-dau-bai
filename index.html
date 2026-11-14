@@ -385,6 +385,8 @@ function canonTen(s){let n=norm(cleanTen(s)).replace(/\btiep theo\b/g,' ').repla
 function bestSim(a,b){return Math.max(sim(a,b),sim(cleanTen(a),cleanTen(b)))}
 
 let ISSUES=[],STATS={};
+// tiết sinh hoạt lớp: GV ghi tên bài tự do (sơ kết tuần, kiểm điểm…), không so tên bài
+const isSinhHoat=m=>/\b(sinh hoat|shcn|shl)\b/.test(norm(m));
 const isNgoaiPpct=t=>/\b(cung co|bo sung)\b.*\bkien thuc\b|\bmore exercises?\b|\bbai tap bo sung\b/.test(norm(t));
 const tuanLb=w=>w?String(w).replace(/^tuần/,'Tuần'):'';
 const TYPES={tiet:'Thiếu tiết',tenbai:'Tên bài',nx:'Nhận xét',ct:'Chính tả',phe:'Phê sổ / ký',vang:'HS vắng',diem:'Điểm / xếp loại'};
@@ -401,7 +403,7 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
     const ngoai=isNgoaiPpct(r.ten);
     if(r.ppct===0&&!ngoai)add(r,'tenbai','err','Tiết PPCT ghi số 0 (chỉ tiết củng cố/bổ sung kiến thức, More Exercises mới ghi 0)');
     if(ngoai&&r.ppct!=null&&r.ppct!==0)add(r,'tenbai','warn',`Tiết củng cố/bổ sung kiến thức (More Exercises) nhưng ghi tiết PPCT ${r.ppct} (phải ghi 0)`);
-    if(usePpct&&r.ten&&r.ppct&&!ngoai){const ref=ppctLookup(r.mon,r.khoi,r.ppct);
+    if(usePpct&&r.ten&&r.ppct&&!ngoai&&!isSinhHoat(r.mon)){const ref=ppctLookup(r.mon,r.khoi,r.ppct);
       if(ref){const sm=bestSim(r.ten,ref);const same=canonTen(r.ten)===canonTen(ref);
         const a=cleanTen(r.ten).toLowerCase(),b=cleanTen(ref).toLowerCase();const part=!same&&a.length>=6&&b.includes(a.replace(/[.;,\s]+$/,''));
         if(part){add(r,'tenbai','warn',`Tên bài ghi chưa đủ theo PPCT tiết ${r.ppct}: “${r.ten}” – PPCT: “${ref}”`)}else
@@ -495,7 +497,7 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
       if(r.tot>p.tot){if(!chuThich)add(r,'vang','err',`Tiết ${p.tiet} vắng ${p.tot}, tiết ${r.tiet} vắng ${r.tot}${moi.length?' (thêm: '+moi.join(', ')+')':''} nhưng nhận xét không chú thích lý do`)}
       else if(!chuThich)add(r,'vang','warn',`Tiết ${p.tiet} vắng ${p.tot}, tiết ${r.tiet} chỉ còn vắng ${r.tot} — kiểm tra lại`)}});
   // tên bài lệch giữa các lớp cùng khối (khi không có PPCT)
-  if(!usePpct)group(live.filter(r=>r.ppct&&r.ten&&r.mon&&!isNgoaiPpct(r.ten)),r=>r.khoi+'|'+monKey(r.mon)+'|'+r.ppct).forEach(arr=>{const names={};arr.forEach(r=>{const k=canonTen(r.ten);(names[k]=names[k]||[]).push(r)});
+  if(!usePpct)group(live.filter(r=>r.ppct&&r.ten&&r.mon&&!isNgoaiPpct(r.ten)&&!isSinhHoat(r.mon)),r=>r.khoi+'|'+monKey(r.mon)+'|'+r.ppct).forEach(arr=>{const names={};arr.forEach(r=>{const k=canonTen(r.ten);(names[k]=names[k]||[]).push(r)});
     const ks=Object.keys(names);if(ks.length<2)return;ks.sort((a,b)=>names[b].length-names[a].length);const main=names[ks[0]][0].ten;
     const mk=canonTen(main);
     ks.slice(1).forEach(k=>names[k].forEach(r=>{if(k.includes(mk)||mk.includes(k)||bestSim(r.ten,main)>=0.6)return;add(r,'tenbai','warn',`Tiết PPCT ${r.ppct} lớp ${r.lop} ghi “${r.ten}”, các lớp khác ghi “${main}”`)}))});
