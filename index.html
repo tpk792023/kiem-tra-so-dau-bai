@@ -437,7 +437,7 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
     else if(r.hasLoai&&!r.loai)add(r,'diem','err','Chưa xếp loại tiết học');
   }
   const live=recs.filter(r=>!r.empty);
-  // so với thời khoá biểu tuần trước: tuần trước có tiết, tuần này ô đó trống → GV chưa ghi/ký sổ
+  // GV chưa ghi sổ: ô có trong TKB / sổ tuần trước mà tuần này trống, VÀ số tiết PPCT của môn đó bị nhảy
   const tkbMiss=new Set();
   {const wdOf=r=>{if(r.day&&r.day.date){const g=r.day.date.getDay();return g===0?8:g+1}const m=String(r.day&&r.day.label||'').match(/th[ứu]\s*(\d)/i);return m?+m[1]:(/cn|chu nhat/.test(norm(r.day&&r.day.label))?8:null)};
    const slot=new Map(),daysWithData=new Set(),weeksOf={};
@@ -449,25 +449,37 @@ function runCheck(){readSettingsUI();if(!TABLES.length){alert('Thầy cô nạp 
    const monday={};ALL.forEach(r=>{if(r.tuanNum==null||!r.day||!r.day.date||r._wd==null||monday[r.tuanNum])return;const d=new Date(r.day.date);d.setDate(d.getDate()-(r._wd-2));monday[r.tuanNum]=d});
    const lastW=s=>{const w=norm(s).split(' ').filter(Boolean);return w[w.length-1]||''};
    const gvFull=(lop,t)=>{const k=lastW(String(t).replace(/\(.*?\)/g,''));if(!k)return '';const a=ALL.find(r=>r.lop===lop&&r.gv&&lastW(r.gv)===k)||ALL.find(r=>r.gv&&lastW(r.gv)===k);return a?a.gv:t};
-   const doneByTkb=new Set();
-   [...new Set(recs.filter(r=>r.tuanNum!=null).map(r=>r.lop+'|'+r.tuanNum))].forEach(key=>{const [lop,ws]=key.split('|');const w=+ws;const tk=tkbFor(w);if(!tk)return;
-     const cells=tk.cells.filter(c=>c.cn===lop);if(!cells.length)return;doneByTkb.add(key);
-     cells.forEach(c=>{const wd=c.d+2,buoi=c.s==='C'?'Chiều':'Sáng',tiet=c.p+1;if(!daysWithData.has(w+'|'+wd))return;
-       if(slot.get(lop+'|'+w+'|'+wd+'|'+buoi+'|'+tiet))return;
+   // gom các ô có thể thiếu: theo TKB thầy nạp và theo sổ tuần trước
+   const checked=new Set(recs.filter(r=>r.tuanNum!=null).map(r=>r.lop+'|'+r.tuanNum));
+   const cand=new Map();
+   const addC=(lop,w,wd,buoi,tiet,o)=>{const k=lop+'|'+w+'|'+wd+'|'+buoi+'|'+tiet;if(slot.get(k)||!daysWithData.has(w+'|'+wd))return;
+     let c=cand.get(k);if(!c){c={lop,w,wd,buoi,tiet,mon:'',somon:'',gv:'',why:[]};cand.set(k,c)}
+     if(o.somon&&!c.somon){c.somon=o.somon;c.mon=o.somon}if(o.mon&&!c.mon)c.mon=o.mon;if(o.gv&&!c.gv)c.gv=o.gv;c.why.push(o.why)};
+   checked.forEach(key=>{const [lop,ws]=key.split('|');const w=+ws;const tk=tkbFor(w);if(!tk)return;
+     tk.cells.filter(c=>c.cn===lop).forEach(c=>{const wd=c.d+2,buoi=c.s==='C'?'Chiều':'Sáng',tiet=c.p+1;
        if(norm(c.sub).startsWith('chao co')&&![1,2,3,4,5,6,7,8,9,10].some(t=>slot.get(lop+'|'+w+'|'+wd+'|'+buoi+'|'+t)))return; // lớp không học buổi đó
-       let ngay='';if(monday[w]){const d=new Date(monday[w]);d.setDate(d.getDate()+wd-2);ngay=fmt(d)}
-       const gv=c.t?gvFull(lop,c.t):'';tkbMiss.add(lop+'|'+ngay+'|'+buoi+'|'+tiet);
-       ISSUES.push({lop,tuan:'Tuần '+w,ngay,tiet,mon:c.sub,gv,type:'tiet',lv:'err',
-         msg:`Chưa ghi sổ tiết ${tiet} buổi ${buoi.toLowerCase()} ${wd===8?'Chủ nhật':'thứ '+wd} — theo TKB (áp dụng từ tuần ${tk.from}) là ${c.sub}${c.t?', GV '+gv:''}`,sortD:ngay?parseDay(ngay).date.getTime():0,idx:-1})})});
-   // b) chưa có TKB cho tuần đó: so với sổ tuần trước
-   ALL.forEach(p=>{if(p.empty||p._wd==null||p.extra)return;const w=p.tuanNum+1;if(doneByTkb.has(p.lop+'|'+w))return;
-     if(!weeksOf[p.lop]||!weeksOf[p.lop].has(w)||!recs.some(r=>r.lop===p.lop&&r.tuanNum===w))return; // tuần sau phải là tuần đang kiểm tra
-     if(!daysWithData.has(w+'|'+p._wd))return; // cả trường không ghi ngày đó: nghỉ lễ, nghỉ học
-     const k=p.lop+'|'+w+'|'+p._wd+'|'+p.buoi+'|'+p.tiet;if(slot.get(k))return;
-     let ngay='';if(p.day&&p.day.date){const d=new Date(p.day.date);d.setDate(d.getDate()+7);ngay=String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear()}
-     tkbMiss.add(p.lop+'|'+ngay+'|'+p.buoi+'|'+p.tiet);
-     ISSUES.push({lop:p.lop,tuan:'Tuần '+w,ngay,tiet:p.tiet,mon:p.mon,gv:p.gv,type:'tiet',lv:'err',
-       msg:`Chưa ghi sổ tiết ${p.tiet} buổi ${String(p.buoi||'').toLowerCase()} ${p._wd===8?'Chủ nhật':'thứ '+p._wd} — theo TKB tuần ${p.tuanNum} là môn ${p.mon}${p.gv?', GV '+p.gv:''}`,sortD:ngay?parseDay(ngay).date.getTime():0,idx:-1})})}
+       const gv=c.t?gvFull(lop,c.t):'';addC(lop,w,wd,buoi,tiet,{mon:c.sub,gv,why:`TKB từ tuần ${tk.from} là ${c.sub}${c.t?' – '+c.t:''}`})})});
+   ALL.forEach(p=>{if(p.empty||p._wd==null||p.extra)return;const w=p.tuanNum+1;if(!checked.has(p.lop+'|'+w))return;
+     addC(p.lop,w,p._wd,p.buoi,p.tiet,{somon:p.mon,gv:p.gv,why:`sổ tuần ${p.tuanNum} là ${p.mon}${p.gv?' – '+p.gv:''}`})});
+   // chỉ báo khi số tiết PPCT của môn đó bị nhảy (tiết trước → tiết sau thiếu số)
+   const subjCode=m=>{const n=norm(m);if(/sinh hoat|shcn|\bshl\b/.test(n))return 'SH';if(/chao co/.test(n))return 'CC';if(/trai nghiem|hdtn/.test(n))return 'HDTN';
+     if(/khtn|khoa hoc tu nhien|hoa hoc|vat l|sinh hoc/.test(n))return 'KHTN';if(/lich su|dia l|ls ?dl|\bls\b|\bdl\b/.test(n))return 'LSDL';if(/ngu van|\bvan\b/.test(n))return 'VAN';
+     if(/toan/.test(n))return 'TOAN';if(/anh|ngoai ngu/.test(n))return 'ANH';if(/cong nghe|\bcn\b/.test(n))return 'CN';if(/\btin\b|tin hoc/.test(n))return 'TIN';
+     if(/gdcd|cong dan/.test(n))return 'GDCD';if(/the chat|gdtc|\btd\b|the duc/.test(n))return 'TD';if(/nghe thuat|am nhac|mi thuat|my thuat|\bnt\b/.test(n))return 'NT';
+     if(/dia phuong|gddp|\bdp\b/.test(n))return 'DP';return n};
+   const ord=(w,wd,buoi,t)=>w*1000+wd*100+(buoi==='Chiều'?50:0)+(+t||0);
+   cand.forEach(c=>{const pos=ord(c.w,c.wd,c.buoi,c.tiet);const gk=lastW(c.gv);
+     const pool=ALL.filter(r=>r.lop===c.lop&&!r.empty&&r.ppct>0&&r._wd!=null&&!r.extra&&r.tuanNum!=null&&!isNgoaiPpct(r.ten)&&
+       (c.somon?monKey(r.mon)===monKey(c.somon):subjCode(r.mon)===subjCode(c.mon))&&(!gk||lastW(r.gv)===gk));
+     let hit=null;
+     [...new Set(pool.map(r=>monKey(r.mon)))].forEach(mk=>{if(hit)return;const g=pool.filter(r=>monKey(r.mon)===mk);
+       let pr=null,nx=null;g.forEach(r=>{const o=ord(r.tuanNum,r._wd,r.buoi,r.tiet);if(o<pos&&(!pr||o>pr.o))pr={r,o};if(o>pos&&(!nx||o<nx.o))nx={r,o}});
+       if(pr&&nx&&nx.r.ppct>pr.r.ppct+1)hit={pr:pr.r,nx:nx.r}});
+     if(!hit)return;
+     let ngay='';if(monday[c.w]){const d=new Date(monday[c.w]);d.setDate(d.getDate()+c.wd-2);ngay=fmt(d)}
+     tkbMiss.add(c.lop+'|'+ngay+'|'+c.buoi+'|'+c.tiet);const gv=c.gv||hit.nx.gv;
+     ISSUES.push({lop:c.lop,tuan:'Tuần '+c.w,ngay,tiet:c.tiet,mon:hit.nx.mon,gv,type:'tiet',lv:'err',
+       msg:`Chưa ghi sổ tiết ${c.tiet} buổi ${c.buoi.toLowerCase()} ${c.wd===8?'Chủ nhật':'thứ '+c.wd} — theo ${c.why.join('; ')}; PPCT ${hit.nx.mon} nhảy từ tiết ${hit.pr.ppct} lên ${hit.nx.ppct}`,sortD:ngay?parseDay(ngay).date.getTime():0,idx:-1})})}
   const group=(arr,kf)=>{const m=new Map();arr.forEach(r=>{const k=kf(r);if(!m.has(k))m.set(k,[]);m.get(k).push(r)});return m};
   // thiếu tiết trong buổi
   group(recs.filter(r=>r.tiet!=null),r=>r.lop+'|'+(r.day?r.day.key:'')+'|'+r.buoi).forEach(arr=>{const fil=arr.filter(r=>!r.empty);if(!fil.length)return;
