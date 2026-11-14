@@ -1,7 +1,7 @@
 (function(){
 /* Nút "Lấy sổ đầu bài" chạy trên trang vnEdu: chỉ ĐỌC sổ, không sửa gì. */
 var CS=document.currentScript;var BASE=CS&&CS.src?CS.src.split('lay-so.js')[0]:'https://tpk792023.github.io/kiem-tra-so-dau-bai/';
-var VER='2026-11-14d'; /* đổi số này mỗi lần sửa để khung cũ trên trang được thay bằng khung mới */
+var VER='2026-11-14e'; /* đổi số này mỗi lần sửa để khung cũ trên trang được thay bằng khung mới */
 if(window.__ksdbPanel&&document.body.contains(window.__ksdbPanel)){if(window.__ksdbVer===VER){window.__ksdbPanel.style.display='block';return}window.__ksdbPanel.remove()}
 window.__ksdbVer=VER;
 if(typeof Ext==='undefined'){alert('Thầy cô mở trang vnEdu (Sổ đầu bài → Chi tiết sổ đầu bài) rồi mới bấm nút này.');return}
@@ -145,7 +145,7 @@ async function layKySoDu(){stop=false;var w1=+$('st1').value,w2=+$('st2').value|
       try{D=await aj('app.kyso.hocba.serv.hoc_ba_dien_tu.danhSachKyMonPhu',{id:f.id,lop_hoc_id:f.lop_hoc_id,page:1,start:0,limit:100})}catch(e){continue}
       var mons=(D&&D.data||[]).map(function(m){return {gv:m.full_name,mon:m.ten_mon_hoc,ky:+m.status===1?1:0,ngay:+m.status===1?(m.updated_date||m.created_date||''):''}});
       var cn=mons.filter(function(m){return /sinh ho[aạ]t/i.test(m.mon)})[0];
-      KYS.rows.push({tuan:w,lop:f.lop,file:f.full_name,somon:f.so_mon_ky,mons:mons,gvcn:+f.gvcn===1?1:0,gvcnTen:cn?cn.gv:'',bgh:+f.bgh===1?1:0,qs:+f.quansinh===1?1:0})}}
+      KYS.rows.push({tuan:w,lop:f.lop,file:f.full_name,somon:f.so_mon_ky,mons:mons,gvcn:+f.gvcn===1?1:0,gvcnTen:f.gvcn_name||(cn?cn.gv:''),bgh:+f.bgh===1?1:0,qs:+f.quansinh===1?1:0,taoLuc:f.ngay_tao||'',banSo:f.version,ttVnedu:String(f.str_status||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim()})}}
   $('sgo').disabled=false;$('kstop').style.display='none';
   var chuaGoi=KYS.tuan.filter(function(t){return !t.so}).map(function(t){return t.tuan});
   sst((stop?'Đã dừng. ':'Xong! ')+KYS.rows.length+' sổ'+(chuaGoi.length?' (tuần '+chuaGoi.join(', ')+' chưa có file – BGH chưa đóng gói)':'')+'. Bấm “Gửi sang trang kiểm tra ký số”.')}

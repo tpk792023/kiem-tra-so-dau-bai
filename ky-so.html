@@ -56,7 +56,7 @@ details summary{cursor:pointer;font-weight:600;margin:4px 0}
 <div class="row noprint small mut" style="margin:-2px 0 10px">Tiêu đề / phiếu: tên trường <input type="text" id="wTruong" style="width:220px"> người kiểm tra <input type="text" id="wNguoi" style="width:170px"> chức vụ <input type="text" id="wChucVu" style="width:130px"> hạn ký <input type="text" id="wHan" style="width:100px" placeholder="20/11/2026"></div>
 <div class="tbl-wrap"><table><thead><tr><th>Trạng thái</th><th>Tuần</th><th>Lớp</th><th>Vai trò</th><th>Giáo viên</th><th>Môn</th><th>Ghi chú</th></tr></thead><tbody id="tbody"></tbody></table></div>
 <details style="margin-top:12px" open><summary>Tổng hợp theo giáo viên</summary><div class="tbl-wrap" style="max-height:none"><table><thead><tr><th>Giáo viên</th><th>Phải ký</th><th>Đã ký</th><th>Chưa ký</th><th>Tỉ lệ đã ký</th><th>Lớp/tuần còn thiếu</th></tr></thead><tbody id="gvBody"></tbody></table></div></details>
-<details style="margin-top:12px"><summary>Thống kê theo tuần</summary><div class="tbl-wrap" style="max-height:none"><table><thead><tr><th>Tuần</th><th>Số sổ</th><th>GVBM đã ký / phải ký</th><th>GVCN đã ký</th><th>BGH đã ký</th><th>Sổ ký đủ</th><th>Ghi chú</th></tr></thead><tbody id="tuanBody"></tbody></table></div></details>
+<details style="margin-top:12px"><summary>Thống kê theo tuần</summary><div class="tbl-wrap" style="max-height:none"><table><thead><tr><th>Tuần</th><th>Số sổ</th><th>GVBM đã ký / phải ký</th><th>GVCN đã ký</th><th>BGH đã ký</th><th>Sổ ký đủ</th><th>File tạo lúc</th></tr></thead><tbody id="tuanBody"></tbody></table></div></details>
 <details style="margin-top:12px"><summary>Thống kê theo lớp</summary><div class="tbl-wrap" style="max-height:none"><table><thead><tr><th>Lớp</th><th>GVCN</th><th>Số tuần</th><th>GVBM đã ký / phải ký</th><th>GVCN đã ký</th><th>BGH đã ký</th><th>Sổ ký đủ</th></tr></thead><tbody id="lopBody"></tbody></table></div></details>
 </section>
 </main>
@@ -70,8 +70,9 @@ let DATA=null,ITEMS=[],statFilter='';
 
 /* mỗi sổ (lớp × tuần) sinh các mục: GVBM theo môn, GVCN, BGH (ký theo thứ tự GVBM → GVCN → BGH) */
 function build(){ITEMS=[];if(!DATA)return;
-  DATA.rows.forEach(f=>{const du=f.mons.length&&f.mons.every(m=>m.ky);
-    f.mons.forEach(m=>ITEMS.push({tuan:f.tuan,lop:f.lop,vt:'GVBM',gv:m.gv,mon:m.mon,ky:m.ky,ngay:m.ngay,lv:m.ky?'ok':'err',note:m.ky&&m.ngay?'Ký lúc '+m.ngay:''}));
+  const tg=v=>{const m=String(v||'').match(/(\d{4})-(\d\d)-(\d\d)[ T](\d\d):(\d\d)/);return m?`${m[3]}/${m[2]} ${m[4]}:${m[5]}`:''};
+  DATA.rows.forEach(f=>{const du=f.mons.length&&f.mons.every(m=>m.ky);const fnote=(f.taoLuc?'File tạo lúc '+tg(f.taoLuc):'')+(/chờ duyệt/i.test(f.ttVnedu||'')?' · vnEdu: Chờ duyệt':'');f._tao=tg(f.taoLuc);
+    f.mons.forEach(m=>ITEMS.push({tuan:f.tuan,lop:f.lop,vt:'GVBM',gv:m.gv,mon:m.mon,ky:m.ky,ngay:m.ngay,lv:m.ky?'ok':'err',note:m.ky&&m.ngay?'Ký lúc '+m.ngay:fnote}));
     ITEMS.push({tuan:f.tuan,lop:f.lop,vt:'GVCN',gv:f.gvcnTen||'(GVCN)',mon:'',ky:f.gvcn,lv:f.gvcn?'ok':(du?'err':'warn'),note:f.gvcn?'':(du?'GVBM đã ký đủ, chờ GVCN ký':`Chờ GVBM ký đủ (${f.somon||''})`)});
     ITEMS.push({tuan:f.tuan,lop:f.lop,vt:'BGH',gv:'Ban giám hiệu',mon:'',ky:f.bgh,lv:f.bgh?'ok':(f.gvcn?'err':'warn'),note:f.bgh?'':(f.gvcn?'GVCN đã ký, chờ BGH ký':'Chờ GVCN ký')})});
   ITEMS.sort((a,b)=>a.tuan-b.tuan||cmpLop(a.lop,b.lop)||['GVBM','GVCN','BGH'].indexOf(a.vt)-['GVBM','GVCN','BGH'].indexOf(b.vt)||a.mon.localeCompare(b.mon,'vi'))}
@@ -89,7 +90,7 @@ function tongHop(){const gv={},tuan={},lop={};
   ITEMS.forEach(i=>{if(i.vt==='GVBM'){const g=gv[i.gv]=gv[i.gv]||{n:0,ky:0,thieu:[]};g.n++;if(i.ky)g.ky++;else g.thieu.push(i.lop+' T'+i.tuan)}
     if(i.vt==='GVCN'&&i.gv!=='(GVCN)'&&i.lv!=='warn'){/* chưa tới lượt GVCN thì chưa tính */const g=gv[i.gv+' (GVCN)']=gv[i.gv+' (GVCN)']||{n:0,ky:0,thieu:[]};g.n++;if(i.ky)g.ky++;else if(i.lv==='err')g.thieu.push(i.lop+' T'+i.tuan)}});
   (DATA?DATA.rows:[]).forEach(f=>{const du=f.mons.length&&f.mons.every(m=>m.ky);const full=du&&f.gvcn&&f.bgh;
-    for(const [M,k] of [[tuan,f.tuan],[lop,f.lop]]){const o=M[k]=M[k]||{so:0,bm:0,bmky:0,cn:0,bgh:0,du:0,cnTen:f.gvcnTen,tuans:new Set()};o.so++;o.bm+=f.mons.length;o.bmky+=f.mons.filter(m=>m.ky).length;o.cn+=f.gvcn;o.bgh+=f.bgh;o.du+=full?1:0;o.tuans.add(f.tuan);if(!o.cnTen)o.cnTen=f.gvcnTen}});
+    for(const [M,k] of [[tuan,f.tuan],[lop,f.lop]]){const o=M[k]=M[k]||{so:0,bm:0,bmky:0,cn:0,bgh:0,du:0,cnTen:f.gvcnTen,tuans:new Set()};o.so++;o.bm+=f.mons.length;o.bmky+=f.mons.filter(m=>m.ky).length;o.cn+=f.gvcn;o.bgh+=f.bgh;o.du+=full?1:0;o.tuans.add(f.tuan);if(!o.cnTen)o.cnTen=f.gvcnTen;if(f._tao){o.tao=o.tao||new Set();o.tao.add(f._tao.slice(0,11))}}});
   return {gv,tuan,lop}}
 function show(){$('result').hidden=false;const th=tongHop();
   const chua=ITEMS.filter(i=>!i.ky),bm=ITEMS.filter(i=>i.vt==='GVBM'),bmKy=bm.filter(i=>i.ky).length;
@@ -105,7 +106,7 @@ function show(){$('result').hidden=false;const th=tongHop();
   fill('fGv',[...new Set(ITEMS.map(i=>i.gv))].sort((a,b)=>a.localeCompare(b,'vi')),'Tất cả giáo viên');
   renderRows();
   $('gvBody').innerHTML=Object.entries(th.gv).sort((a,b)=>(b[1].n-b[1].ky)-(a[1].n-a[1].ky)||a[0].localeCompare(b[0],'vi')).map(([g,o])=>`<tr><td>${esc(g)}</td><td class="n">${o.n}</td><td class="n">${o.ky}</td><td class="n">${o.n-o.ky?'<span class="lv-err">'+(o.n-o.ky)+'</span>':'0'}</td><td><div class="row" style="gap:6px"><div class="bar"><i style="width:${pct(o.ky,o.n)}%"></i></div>${pct(o.ky,o.n)}%</div></td><td class="small">${esc(o.thieu.slice(0,12).join(', '))}${o.thieu.length>12?' …':''}</td></tr>`).join('');
-  $('tuanBody').innerHTML=Object.entries(th.tuan).sort((a,b)=>a[0]-b[0]).map(([t,o])=>`<tr><td>Tuần ${t}</td><td class="n">${o.so}</td><td class="n">${o.bmky}/${o.bm} (${pct(o.bmky,o.bm)}%)</td><td class="n">${o.cn}/${o.so}</td><td class="n">${o.bgh}/${o.so}</td><td class="n">${o.du}/${o.so}</td><td></td></tr>`).join('')
+  $('tuanBody').innerHTML=Object.entries(th.tuan).sort((a,b)=>a[0]-b[0]).map(([t,o])=>`<tr><td>Tuần ${t}</td><td class="n">${o.so}</td><td class="n">${o.bmky}/${o.bm} (${pct(o.bmky,o.bm)}%)</td><td class="n">${o.cn}/${o.so}</td><td class="n">${o.bgh}/${o.so}</td><td class="n">${o.du}/${o.so}</td><td class="small">${o.tao?[...o.tao].sort().join(', '):''}</td></tr>`).join('')
     +chuaGoi.map(t=>`<tr><td>Tuần ${t}</td><td class="n">0</td><td colspan="4"></td><td class="small" style="color:var(--warn)">Chưa có file ký số (BGH chưa đóng gói)</td></tr>`).join('');
   $('lopBody').innerHTML=Object.entries(th.lop).sort((a,b)=>cmpLop(a[0],b[0])).map(([l,o])=>`<tr><td>${esc(l)}</td><td>${esc(o.cnTen||'')}</td><td class="n">${o.tuans.size}</td><td class="n">${o.bmky}/${o.bm} (${pct(o.bmky,o.bm)}%)</td><td class="n">${o.cn}/${o.so}</td><td class="n">${o.bgh}/${o.so}</td><td class="n">${o.du}/${o.so}</td></tr>`).join('');
   $('result').scrollIntoView({behavior:'smooth'})}
