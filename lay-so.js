@@ -1,7 +1,7 @@
 (function(){
 /* Nút "Lấy sổ đầu bài" chạy trên trang vnEdu: chỉ ĐỌC sổ, không sửa gì. */
 var CS=document.currentScript;var BASE=CS&&CS.src?CS.src.split('lay-so.js')[0]:'https://tpk792023.github.io/kiem-tra-so-dau-bai/';
-var VER='2026-11-14e'; /* đổi số này mỗi lần sửa để khung cũ trên trang được thay bằng khung mới */
+var VER='2026-11-15a'; /* đổi số này mỗi lần sửa để khung cũ trên trang được thay bằng khung mới */
 if(window.__ksdbPanel&&document.body.contains(window.__ksdbPanel)){if(window.__ksdbVer===VER){window.__ksdbPanel.style.display='block';return}window.__ksdbPanel.remove()}
 window.__ksdbVer=VER;
 if(typeof Ext==='undefined'){alert('Thầy cô mở trang vnEdu (Sổ đầu bài → Chi tiết sổ đầu bài) rồi mới bấm nút này.');return}
@@ -137,7 +137,9 @@ var KYS=window.__ksdbKys=window.__ksdbKys||{rows:[],tuan:[]};
 function sst(t){$('sst').textContent=t}
 if(wc){$('st1').value=$('st2').value=wc.getValue()}$('scap').value=String(capNow==1?1:2);
 async function layKySoDu(){stop=false;var w1=+$('st1').value,w2=+$('st2').value||w1;if(!w1){sst('Gõ số tuần cần kiểm tra.');return}if(w2<w1){var x=w1;w1=w2;w2=x}
-  var cap=$('scap').value;KYS.rows=[];KYS.tuan=[];$('sgo').disabled=true;$('kstop').style.display='';
+  var cap=$('scap').value;KYS.rows=[];KYS.tuan=[];KYS.lops=[];
+  /* danh sách tất cả lớp của cấp để biết lớp nào chưa có file ký số */
+  try{var ks=cap==1?[1,2,3,4,5]:[6,7,8,9];for(var q=0;q<ks.length;q++){var ll=J(await ajx('?call=edu.khoi_hoc.getLopByKhoix&nam_hoc='+NH,{khoi:ks[q]}));(ll&&(ll.data||ll)||[]).forEach(function(x){if(+x.khoi===ks[q])KYS.lops.push(x.ten)})}}catch(e){}$('sgo').disabled=true;$('kstop').style.display='';
   for(var w=w1;w<=w2&&!stop;w++){sst('Đang xem tuần '+w+'…');var L;
     try{L=await aj('app.kyso.hocba.serv.hoc_ba_dien_tu.danhSachSoDiemTongHop',{object_type:33,khoi_hoc_id:0,lop_id:0,cap_hoc:cap,diem_truong_id:0,hoc_ky:w,giao_vien_id:0,trang_thai_ky:0,role:1,page:1,start:0,limit:500})}catch(e){KYS.tuan.push({tuan:w,so:0,loi:1});continue}
     var files=L&&L.data||[];KYS.tuan.push({tuan:w,so:files.length});
@@ -149,7 +151,7 @@ async function layKySoDu(){stop=false;var w1=+$('st1').value,w2=+$('st2').value|
   $('sgo').disabled=false;$('kstop').style.display='none';
   var chuaGoi=KYS.tuan.filter(function(t){return !t.so}).map(function(t){return t.tuan});
   sst((stop?'Đã dừng. ':'Xong! ')+KYS.rows.length+' sổ'+(chuaGoi.length?' (tuần '+chuaGoi.join(', ')+' chưa có file – BGH chưa đóng gói)':'')+'. Bấm “Gửi sang trang kiểm tra ký số”.')}
-function kysJson(){return JSON.stringify({nam:NH,cap:$('scap').value,tuan:KYS.tuan,rows:KYS.rows})}
+function kysJson(){return JSON.stringify({nam:NH,cap:$('scap').value,tuan:KYS.tuan,rows:KYS.rows,lops:KYS.lops||[]})}
 function guiKySo(){if(!KYS.rows.length&&!KYS.tuan.length){sst('Chưa lấy dữ liệu. Bấm “Lấy trạng thái ký số” trước.');return}
   var t=kysJson(),w=window.open(BASE+'ky-so.html','_blank');if(!w){sst('Trình duyệt chặn mở cửa sổ mới. Dùng nút “Chép để dán”.');return}var done=false;
   function on(e){if(e.source!==w||e.data!=='ksdb-ready')return;done=true;w.postMessage({type:'ksdb-kyso',json:t},'*');window.removeEventListener('message',on);sst('Đã gửi '+KYS.rows.length+' sổ sang trang kiểm tra ký số.')}
