@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kết quả môn học</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<style>
+:root{--bg:#f4f6fb;--card:#fff;--ink:#142039;--mut:#5d6880;--line:#dfe4ee;--pri:#0f3d8c;--t:#1b7f3b;--k:#1f5fbf;--d:#b37400;--c:#c62828}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#11151d;--card:#1a202b;--ink:#e6eaf2;--mut:#9aa5ba;--line:#2c3443;--pri:#8fb3ff;--t:#7bd99a;--k:#8fb3ff;--d:#ffb74d;--c:#ff8a80}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,"Segoe UI",Arial,sans-serif}
+main{max-width:1200px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:4px 0 2px;color:var(--pri)}.mut{color:var(--mut)}.small{font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:12px 0}
+h2{font-size:17px;margin:0 0 8px}.num{display:inline-flex;width:24px;height:24px;border-radius:50%;background:var(--pri);color:#fff;align-items:center;justify-content:center;font-size:13px;margin-right:6px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button,select,input[type=text]{font:inherit;padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+button{cursor:pointer;background:var(--pri);color:#fff;border-color:var(--pri)}button.sec{background:var(--card);color:var(--pri)}
+.stats{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.stat{border:1px solid var(--line);border-radius:10px;padding:8px 14px;min-width:120px;background:var(--card)}.stat b{display:block;font-size:22px}
+.tbl-wrap{overflow:auto;max-height:65vh;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:14px}th,td{border-bottom:1px solid var(--line);padding:5px 8px;text-align:left;white-space:nowrap}
+th{position:sticky;top:0;background:var(--card);z-index:1}td.n{text-align:right}
+.t{color:var(--t);font-weight:600}.k{color:var(--k);font-weight:600}.d{color:var(--d);font-weight:600}.c{color:var(--c);font-weight:600}
+.bar{display:flex;height:10px;border-radius:5px;overflow:hidden;min-width:120px;background:var(--line)}.bar i{display:block;height:100%}
+details summary{cursor:pointer;font-weight:600;margin:4px 0}
+@media print{.noprint{display:none}.tbl-wrap{max-height:none;overflow:visible}body{background:#fff}}
+</style>
+</head>
+<body><main>
+<h1>Thống kê kết quả môn học</h1>
+<div class="mut small">Thống kê điểm theo lớp, môn, giáo viên từ sổ điểm vnEdu (mức theo Thông tư 22: Tốt ≥ 8,0; Khá 6,5–7,9; Đạt 5,0–6,4; Chưa đạt &lt; 5,0). Chỉ đọc, không sửa điểm. <a href="./">← Kiểm tra sổ đầu bài</a> · <a href="xep-hang.html">Xếp hạng cuối kì</a> · <a href="ky-so.html">Kiểm tra ký số</a></div>
+
+<section class="card noprint">
+<h2><span class="num">1</span>Lấy điểm từ vnEdu</h2>
+<div class="small">Trên vnEdu bấm nút dấu trang <b>📒 Lấy sổ đầu bài</b> → phần <b>Kết quả môn học &amp; file mẫu nhập điểm</b> → chọn học kỳ, khối, phạm vi (<i>Các môn tôi dạy</i> hoặc <i>Tất cả môn</i>) → <b>Thống kê kết quả</b>. Trang này tự mở và nhận điểm. Nếu đã bấm “Chép để dán” thì bấm <button class="sec" id="dan">Dán từ vnEdu</button></div>
+<div class="small" style="margin-top:8px"><b>File mẫu nhập điểm:</b> ở cùng phần đó bấm <b>Tải file mẫu nhập điểm</b> → nhận 1 file nén, mỗi lớp–môn 1 file Excel đúng mẫu sổ điểm của vnEdu (có sẵn danh sách học sinh). Điền điểm vào file, rồi trên vnEdu mở <b>Sổ điểm – nhận xét</b> → chọn lớp, môn → <b>Nhập từ Excel</b> chọn file đó → kiểm tra các ô tô màu → bấm <b>Lưu</b>. (Phần mềm không tự ghi điểm lên vnEdu để tránh ghi nhầm.)</div>
+<div id="nguon" class="small mut" style="margin-top:6px"></div>
+</section>
+
+<section class="card" id="result" hidden>
+<h2><span class="num">2</span>Kết quả</h2>
+<div class="row noprint">
+  <select id="fMon"><option value="">Tất cả môn</option></select>
+  <select id="fGv"><option value="">Tất cả giáo viên</option></select>
+  <select id="fKhoi"><option value="">Tất cả khối</option></select>
+  <span class="small mut">Thống kê theo</span><select id="fCot"><option value="dtb">ĐTB môn học kỳ</option><option value="ck">ĐĐG cuối kì</option><option value="gk">ĐĐG giữa kì</option><option value="tx">TB các ĐĐG thường xuyên</option></select>
+  <button id="btnXls">Xuất Excel</button><button class="sec" id="btnIn">In</button>
+</div>
+<div class="row noprint small mut" style="margin:8px 0">Tên trường trên file Excel <input type="text" id="wTruong" style="width:240px"></div>
+<div id="sum" class="small"></div>
+<div class="stats" id="stats"></div>
+<h3 style="font-size:15px;margin:10px 0 6px">Theo lớp – môn</h3>
+<div class="tbl-wrap"><table><thead><tr><th>Lớp</th><th>Môn</th><th>Giáo viên</th><th>Sĩ số</th><th>Có điểm</th><th>Điểm TB</th><th>Cao nhất</th><th>Thấp nhất</th><th>Tốt</th><th>Khá</th><th>Đạt</th><th>Chưa đạt</th><th>Tỉ lệ</th></tr></thead><tbody id="tbLop"></tbody></table></div>
+<details style="margin-top:12px" open><summary>Tổng hợp theo giáo viên – môn</summary><div class="tbl-wrap" style="max-height:none"><table><thead><tr><th>Giáo viên</th><th>Môn</th><th>Số lớp</th><th>Có điểm</th><th>Điểm TB</th><th>Tốt</th><th>Khá</th><th>Đạt</th><th>Chưa đạt</th><th>Tỉ lệ</th></tr></thead><tbody id="tbGv"></tbody></table></div></details>
+<details style="margin-top:12px"><summary>Tổng hợp theo môn – khối</summary><div class="tbl-wrap" style="max-height:none"><table><thead><tr><th>Môn</th><th>Khối</th><th>Số lớp</th><th>Có điểm</th><th>Điểm TB</th><th>Tốt</th><th>Khá</th><th>Đạt</th><th>Chưa đạt</th><th>Tỉ lệ</th></tr></thead><tbody id="tbMon"></tbody></table></div></details>
+<details style="margin-top:12px"><summary>Môn đánh giá bằng nhận xét (Đạt / Chưa đạt)</summary><div class="tbl-wrap" style="max-height:none"><table><thead><tr><th>Lớp</th><th>Môn</th><th>Giáo viên</th><th>Sĩ số</th><th>Đạt (Đ)</th><th>Chưa đạt (CĐ)</th><th>Chưa đánh giá</th></tr></thead><tbody id="tbNx"></tbody></table></div></details>
+</section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const cmpLop=(a,b)=>String(a).localeCompare(String(b),'vi',{numeric:true});
+const num=v=>{const s=String(v??'').trim().replace(',','.');return /^\d+(\.\d+)?$/.test(s)?+s:null};
+let ROWS=[],META={};   // {khoi,lop,mon,gv,ma,ten,tx:[..],gk,ck,dtb}
+
+function nap(t,meta){const L=String(t).replace(/\r/g,'').split('\n').filter(l=>l.trim());let i=0;
+  if(/^#KQMH/.test(L[0])){const p=L[0].split(/\s+/);meta={nam:p[1],hk:p[2]};i=1}
+  if(!L[i]||!/Mã HS/.test(L[i]))return false;
+  ROWS=L.slice(i+1).map(l=>{const r=l.split('\t');return {khoi:r[0],lop:r[1],mon:r[2],gv:r[3],ma:r[4],ten:r[5],tx:String(r[6]||'').split(';').filter(x=>x!==''),gk:r[7]||'',ck:r[8]||'',dtb:r[9]||''}});
+  META=meta||{};$('nguon').textContent=`Đã nhận ${ROWS.length} dòng điểm`+(META.nam?`, năm học ${META.nam}-${+META.nam+1}, học kỳ ${META.hk}`:'')+'.';show();return true}
+window.addEventListener('message',e=>{if(e.source!==window.opener||!e.data||e.data.type!=='ksdb-tk'||typeof e.data.tsv!=='string')return;nap(e.data.tsv,{nam:e.data.nam,hk:e.data.hk})});
+if(window.opener)try{window.opener.postMessage('ksdb-ready','*')}catch(e){}
+$('dan').onclick=async()=>{let t='';try{t=await navigator.clipboard.readText()}catch(e){}if(!t||!nap(t))alert('Bộ nhớ tạm chưa có điểm. Trên vnEdu bấm “Chép để dán” ở phần Kết quả môn học trước nhé.')};
+
+// giá trị dùng để thống kê
+function giaTri(r,cot){if(cot==='tx'){const a=r.tx.map(num).filter(v=>v!=null);return a.length?Math.round(a.reduce((s,v)=>s+v,0)/a.length*100)/100:null}return num(r[cot])}
+const laNx=r=>[r.dtb,r.ck,r.gk,...r.tx].some(v=>/^(Đ|CĐ|Đạt|Chưa đạt)$/i.test(String(v).trim()));
+const muc=v=>v>=8?'T':v>=6.5?'K':v>=5?'D':'C';
+function gom(list,cot){const o={n:list.length,co:0,tong:0,max:null,min:null,T:0,K:0,D:0,C:0};list.forEach(r=>{const v=giaTri(r,cot);if(v==null)return;o.co++;o.tong+=v;o.max=o.max==null?v:Math.max(o.max,v);o.min=o.min==null?v:Math.min(o.min,v);o[muc(v)]++});o.tb=o.co?Math.round(o.tong/o.co*100)/100:null;return o}
+const pct=(a,b)=>b?Math.round(a*1000/b)/10:0;
+const cell=(n,co,cls)=>`<td class="n"><span class="${cls}">${n}</span> <span class="mut small">(${pct(n,co)}%)</span></td>`;
+const bar=o=>`<td><div class="bar">${[['T','#2e9d55'],['K','#3b78d8'],['D','#e0a020'],['C','#d64545']].map(([k,c])=>`<i style="width:${pct(o[k],o.co)}%;background:${c}"></i>`).join('')}</div></td>`;
+function loc(){const m=$('fMon').value,g=$('fGv').value,k=$('fKhoi').value;return ROWS.filter(r=>(!m||r.mon===m)&&(!g||tachGv(r.gv).includes(g))&&(!k||String(r.khoi)===k))}
+const tachGv=s=>String(s||'').split(/\s*&\s*|\s*,\s*/).map(x=>x.trim()).filter(Boolean);
+function group(list,kf){const m=new Map();list.forEach(r=>{[].concat(kf(r)).forEach(k=>{if(!m.has(k))m.set(k,[]);m.get(k).push(r)})});return m}
+function show(){$('result').hidden=false;const cot=$('fCot').value;
+  const fill=(id,vals,first)=>{const cur=$(id).value;$(id).innerHTML=`<option value="">${first}</option>`+vals.map(v=>`<option${String(v)===cur?' selected':''}>${esc(v)}</option>`).join('')};
+  fill('fMon',[...new Set(ROWS.map(r=>r.mon))].sort((a,b)=>a.localeCompare(b,'vi')),'Tất cả môn');
+  fill('fGv',[...new Set(ROWS.flatMap(r=>tachGv(r.gv)))].sort((a,b)=>a.localeCompare(b,'vi')),'Tất cả giáo viên');
+  fill('fKhoi',[...new Set(ROWS.map(r=>String(r.khoi)))].sort((a,b)=>a-b),'Tất cả khối');
+  const all=loc(),so=all.filter(r=>!laNx(r)),nx=all.filter(laNx);const G=gom(so,cot);
+  $('sum').innerHTML=`<b>${new Set(all.map(r=>r.lop+'|'+r.mon)).size}</b> sổ lớp–môn, <b>${new Set(all.map(r=>r.ma)).size}</b> học sinh. Môn tính điểm số: <b>${G.co}/${G.n}</b> lượt có điểm “${$('fCot').selectedOptions[0].text}”`+(G.co<G.n?` <span class="mut">(${G.n-G.co} lượt chưa có điểm)</span>`:'')+'.';
+  $('stats').innerHTML=[['Điểm TB',G.tb??'–',''],['Tốt',G.T+` <small>(${pct(G.T,G.co)}%)</small>`,'t'],['Khá',G.K+` <small>(${pct(G.K,G.co)}%)</small>`,'k'],['Đạt',G.D+` <small>(${pct(G.D,G.co)}%)</small>`,'d'],['Chưa đạt',G.C+` <small>(${pct(G.C,G.co)}%)</small>`,'c']].map(([t,v,c])=>`<div class="stat"><b class="${c}">${v}</b>${t}</div>`).join('');
+  const dong=(o,dau)=>`<tr>${dau}<td class="n">${o.n}</td><td class="n">${o.co}</td><td class="n"><b>${o.tb??''}</b></td><td class="n">${o.max??''}</td><td class="n">${o.min??''}</td>${cell(o.T,o.co,'t')}${cell(o.K,o.co,'k')}${cell(o.D,o.co,'d')}${cell(o.C,o.co,'c')}${bar(o)}</tr>`;
+  $('tbLop').innerHTML=[...group(so,r=>r.lop+'|'+r.mon)].sort((a,b)=>cmpLop(a[0],b[0])).map(([k,l])=>{const o=gom(l,cot);return dong(o,`<td>${esc(l[0].lop)}</td><td>${esc(l[0].mon)}</td><td>${esc(l[0].gv)}</td>`)}).join('')||'<tr><td colspan="13" class="mut">Không có dữ liệu.</td></tr>';
+  $('tbGv').innerHTML=[...group(so,r=>tachGv(r.gv).map(g=>g+'|'+r.mon))].sort((a,b)=>a[0].localeCompare(b[0],'vi')).map(([k,l])=>{const o=gom(l,cot);const [g,m]=k.split('|');
+    return `<tr><td>${esc(g)}</td><td>${esc(m)}</td><td class="n">${new Set(l.map(r=>r.lop)).size}</td><td class="n">${o.co}</td><td class="n"><b>${o.tb??''}</b></td>${cell(o.T,o.co,'t')}${cell(o.K,o.co,'k')}${cell(o.D,o.co,'d')}${cell(o.C,o.co,'c')}${bar(o)}</tr>`}).join('');
+  $('tbMon').innerHTML=[...group(so,r=>r.mon+'|'+r.khoi)].sort((a,b)=>a[0].localeCompare(b[0],'vi',{numeric:true})).map(([k,l])=>{const o=gom(l,cot);const [m,kh]=k.split('|');
+    return `<tr><td>${esc(m)}</td><td>${esc(kh)}</td><td class="n">${new Set(l.map(r=>r.lop)).size}</td><td class="n">${o.co}</td><td class="n"><b>${o.tb??''}</b></td>${cell(o.T,o.co,'t')}${cell(o.K,o.co,'k')}${cell(o.D,o.co,'d')}${cell(o.C,o.co,'c')}${bar(o)}</tr>`}).join('');
+  const vNx=r=>String((cot==='tx'?r.tx[r.tx.length-1]:r[cot])||r.dtb||r.ck||'').trim();
+  $('tbNx').innerHTML=[...group(nx,r=>r.lop+'|'+r.mon)].sort((a,b)=>cmpLop(a[0],b[0])).map(([k,l])=>{const d=l.filter(r=>/^(Đ|Đạt)$/i.test(vNx(r))).length,c=l.filter(r=>/^(CĐ|Chưa đạt)$/i.test(vNx(r))).length;
+    return `<tr><td>${esc(l[0].lop)}</td><td>${esc(l[0].mon)}</td><td>${esc(l[0].gv)}</td><td class="n">${l.length}</td><td class="n t">${d}</td><td class="n c">${c}</td><td class="n">${l.length-d-c}</td></tr>`}).join('')||'<tr><td colspan="7" class="mut">Không có.</td></tr>'}
+['fMon','fGv','fKhoi','fCot'].forEach(id=>$(id).onchange=show);$('btnIn').onclick=()=>window.print();
+(()=>{let v='';try{v=localStorage.getItem('tk_truong')||''}catch(e){}$('wTruong').value=v||'TRƯỜNG TH & THCS ĐA PHƯỚC';$('wTruong').onchange=()=>{try{localStorage.setItem('tk_truong',$('wTruong').value.trim())}catch(e){}}})();
+
+// Excel: tiêu đề, khung, tô màu mức
+$('btnXls').onclick=async()=>{if(!ROWS.length)return;if(typeof ExcelJS==='undefined'){alert('Chưa tải được thư viện Excel, kiểm tra mạng rồi bấm lại.');return}
+  const cot=$('fCot').value,cotTen=$('fCot').selectedOptions[0].text,all=loc(),so=all.filter(r=>!laNx(r));
+  const wb=new ExcelJS.Workbook();const vien={top:{style:'thin'},left:{style:'thin'},bottom:{style:'thin'},right:{style:'thin'}};const FILL=c=>({type:'pattern',pattern:'solid',fgColor:{argb:c}});
+  const MAU={T:'FFE2F0D9',K:'FFDDEBF7',D:'FFFFF2CC',C:'FFFCE4E4'};
+  function sheet(name,title,H,rows,widths,colorCol){const ws=wb.addWorksheet(name,{pageSetup:{orientation:'landscape',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0},views:[{state:'frozen',ySplit:6}]});const n=H.length;
+    ws.mergeCells(1,1,1,Math.max(2,Math.ceil(n/2)));ws.getCell(1,1).value=$('wTruong').value.trim().toUpperCase();ws.getCell(1,1).font={bold:true,size:12};ws.getCell(1,1).alignment={horizontal:'center'};
+    ws.mergeCells(3,1,3,n);ws.getCell(3,1).value=title;ws.getCell(3,1).font={bold:true,size:14};ws.getCell(3,1).alignment={horizontal:'center'};
+    ws.mergeCells(4,1,4,n);ws.getCell(4,1).value=`Thống kê theo: ${cotTen}`+(META.hk?` – Học kỳ ${META.hk==2?'II':'I'}`:'')+(META.nam?` – Năm học ${META.nam}-${+META.nam+1}`:'');ws.getCell(4,1).font={italic:true};ws.getCell(4,1).alignment={horizontal:'center'};
+    const hr=ws.getRow(6);H.forEach((v,i)=>{const c=hr.getCell(i+1);c.value=v;c.font={bold:true};c.alignment={horizontal:'center',vertical:'middle',wrapText:true};c.border=vien;c.fill=FILL('FFD9E1F2')});hr.height=34;
+    rows.forEach((r,k)=>{const row=ws.getRow(7+k);r.forEach((v,j)=>{const c=row.getCell(j+1);c.value=v;c.border=vien;c.alignment={horizontal:typeof v==='number'?'center':'left',vertical:'middle'};if(colorCol&&colorCol[j])c.fill=FILL(MAU[colorCol[j]])})});
+    widths.forEach((w,i)=>ws.getColumn(i+1).width=w)}
+  const H5=['Tốt (SL)','Tốt (%)','Khá (SL)','Khá (%)','Đạt (SL)','Đạt (%)','Chưa đạt (SL)','Chưa đạt (%)'];const c5=o=>[o.T,pct(o.T,o.co),o.K,pct(o.K,o.co),o.D,pct(o.D,o.co),o.C,pct(o.C,o.co)];
+  const mau5=(off)=>{const m={};['T','T','K','K','D','D','C','C'].forEach((x,i)=>m[off+i]=x);return m};
+  const r1=[...group(so,r=>r.lop+'|'+r.mon)].sort((a,b)=>cmpLop(a[0],b[0])).map(([k,l],i)=>{const o=gom(l,cot);return [i+1,l[0].lop,l[0].mon,l[0].gv,o.n,o.co,o.tb,o.max,o.min,...c5(o)]});
+  sheet('Theo lớp - môn','THỐNG KÊ KẾT QUẢ MÔN HỌC THEO LỚP',['STT','Lớp','Môn','Giáo viên','Sĩ số','Có điểm','Điểm TB','Cao nhất','Thấp nhất',...H5],r1,[5,7,22,30,7,8,8,8,8,8,8,8,8,8,8,10,10],mau5(9));
+  const r2=[...group(so,r=>tachGv(r.gv).map(g=>g+'|'+r.mon))].sort((a,b)=>a[0].localeCompare(b[0],'vi')).map(([k,l],i)=>{const o=gom(l,cot);const [g,m]=k.split('|');return [i+1,g,m,new Set(l.map(r=>r.lop)).size,o.co,o.tb,...c5(o)]});
+  sheet('Theo giáo viên','THỐNG KÊ KẾT QUẢ MÔN HỌC THEO GIÁO VIÊN',['STT','Giáo viên','Môn','Số lớp','Có điểm','Điểm TB',...H5],r2,[5,28,22,7,8,8,8,8,8,8,8,8,10,10],mau5(6));
+  const r3=[...group(so,r=>r.mon+'|'+r.khoi)].sort((a,b)=>a[0].localeCompare(b[0],'vi',{numeric:true})).map(([k,l],i)=>{const o=gom(l,cot);const [m,kh]=k.split('|');return [i+1,m,+kh,new Set(l.map(r=>r.lop)).size,o.co,o.tb,...c5(o)]});
+  sheet('Theo môn - khối','THỐNG KÊ KẾT QUẢ MÔN HỌC THEO KHỐI',['STT','Môn','Khối','Số lớp','Có điểm','Điểm TB',...H5],r3,[5,24,7,7,8,8,8,8,8,8,8,8,10,10],mau5(6));
+  const r4=all.slice().sort((a,b)=>cmpLop(a.lop,b.lop)||a.mon.localeCompare(b.mon,'vi')).map((r,i)=>[i+1,r.lop,r.mon,r.gv,r.ma,r.ten,r.tx.join('; '),r.gk,r.ck,r.dtb]);
+  sheet('Danh sách điểm','DANH SÁCH ĐIỂM HỌC SINH',['STT','Lớp','Môn','Giáo viên','Mã HS','Họ và tên','ĐĐGtx','ĐĐGgk','ĐĐGck','ĐTBmhk'],r4,[6,7,22,28,13,26,18,8,8,9]);
+  const buf=await wb.xlsx.writeBuffer();const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+  a.download='Thong-ke-ket-qua-mon-hoc'+(META.nam?'_'+META.nam+'-'+(+META.nam+1):'')+(META.hk?'_HK'+META.hk:'')+'.xlsx';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},2000)};
+</script>
+</body></html>

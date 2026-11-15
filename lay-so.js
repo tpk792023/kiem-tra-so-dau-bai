@@ -1,7 +1,7 @@
 (function(){
 /* Nút "Lấy sổ đầu bài" chạy trên trang vnEdu: chỉ ĐỌC sổ, không sửa gì. */
 var CS=document.currentScript;var BASE=CS&&CS.src?CS.src.split('lay-so.js')[0]:'https://tpk792023.github.io/kiem-tra-so-dau-bai/';
-var VER='2026-11-15a'; /* đổi số này mỗi lần sửa để khung cũ trên trang được thay bằng khung mới */
+var VER='2026-11-15b'; /* đổi số này mỗi lần sửa để khung cũ trên trang được thay bằng khung mới */
 if(window.__ksdbPanel&&document.body.contains(window.__ksdbPanel)){if(window.__ksdbVer===VER){window.__ksdbPanel.style.display='block';return}window.__ksdbPanel.remove()}
 window.__ksdbVer=VER;
 if(typeof Ext==='undefined'){alert('Thầy cô mở trang vnEdu (Sổ đầu bài → Chi tiết sổ đầu bài) rồi mới bấm nút này.');return}
@@ -89,7 +89,12 @@ P.innerHTML='<b style="font-size:15px;color:#0f3d8c">Lấy sổ đầu bài đ�
  '<div style="border-top:1px solid #dfe4ee;margin-top:10px;padding-top:8px"><b style="color:#0f3d8c">Kiểm tra chữ ký số sổ đầu bài</b>'+
  '<div style="margin:4px 0">Tuần từ <input id="st1" style="width:40px"> đến <input id="st2" style="width:40px"> Cấp <select id="scap"><option value="2">THCS</option><option value="1">Tiểu học</option></select></div>'+
  '<div style="display:flex;gap:6px;flex-wrap:wrap"><button id="sgo">Lấy trạng thái ký số</button><button id="ssend" style="font-weight:bold">Gửi sang trang kiểm tra ký số</button><button id="scp">Chép để dán</button></div>'+
- '<div id="sst" style="margin-top:6px;color:#0f7a3d"></div></div>';
+ '<div id="sst" style="margin-top:6px;color:#0f7a3d"></div></div>'+
+ '<div style="border-top:1px solid #dfe4ee;margin-top:10px;padding-top:8px"><b style="color:#0f3d8c">Kết quả môn học &amp; file mẫu nhập điểm</b>'+
+ '<div style="margin:4px 0">Học kỳ <select id="thk"><option value="1">HK 1</option><option value="2">HK 2</option></select> Khối <select id="tkh"><option value="">Tất cả</option></select></div>'+
+ '<div style="margin:4px 0">Phạm vi <select id="tpv"><option value="toi">Các môn tôi dạy</option><option value="all">Tất cả môn (toàn trường)</option></select></div>'+
+ '<div style="display:flex;gap:6px;flex-wrap:wrap"><button id="tgo">Thống kê kết quả</button><button id="tsend" style="font-weight:bold">Gửi sang trang thống kê</button><button id="tmau">Tải file mẫu nhập điểm</button><button id="tcp">Chép để dán</button></div>'+
+ '<div id="tst" style="margin-top:6px;color:#0f7a3d"></div></div>';
 document.body.appendChild(P);
 function $(i){return P.querySelector('#'+i)}
 function status(s){$('kst').textContent=s}
@@ -159,6 +164,43 @@ function guiKySo(){if(!KYS.rows.length&&!KYS.tuan.length){sst('Chưa lấy dữ 
 function chepKySo(){if(!KYS.rows.length&&!KYS.tuan.length){sst('Chưa lấy dữ liệu.');return}var t='#KYSO-DU\n'+kysJson();var ok=function(){sst('Đã chép. Sang trang Kiểm tra ký số, bấm “Dán từ vnEdu”.')};
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(ok,fb);else fb();
   function fb(){var a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove();ok()}}
+/* ===== kết quả môn học (đọc sổ điểm) + file mẫu nhập điểm (file xuất của vnEdu) – chỉ đọc ===== */
+var TK=window.__ksdbTk=window.__ksdbTk||{rows:[],ds:[]};
+function tst(t){$('tst').textContent=t}
+(capNow==1?[1,2,3,4,5]:[6,7,8,9]).forEach(function(k){var o=document.createElement('option');o.value=k;o.textContent='Khối '+k;$('tkh').appendChild(o)});
+function hocSoDiem(h){var th=(h.match(/<thead>([\s\S]*?)<\/thead>/)||[])[1]||'';var gv=((h.match(/Giáo viên dạy:([\s\S]{0,300}?)<\/td>/)||[])[1]||'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/\+\s*\d+\s*GV được ủy quyền/,'').replace(/\s+/g,' ').trim();
+  var toi=/Bạn là giáo viên bộ môn|Bạn là GVBM|được ủy quyền nhập/i.test(((h.match(/Quyền hạn:([\s\S]{0,200}?)<\/td>/)||[])[1]||''));var ntx=(th.match(/cn='ĐĐGtx'/g)||[]).length;return {gv:gv,toi:toi,ntx:ntx}}
+async function quetMon(lamGi){stop=false;var hk=$('thk').value,pv=$('tpv').value,ks=$('tkh').value?[+$('tkh').value]:(capNow==1?[1,2,3,4,5]:[6,7,8,9]);
+  TK.rows=[];TK.ds=[];$('tgo').disabled=$('tmau').disabled=true;$('kstop').style.display='';var lops=[];
+  for(var i=0;i<ks.length;i++){var l=J(await ajx('?call=edu.khoi_hoc.getLopByKhoix&nam_hoc='+NH,{khoi:ks[i]}));(l&&(l.data||l)||[]).forEach(function(x){if(+x.khoi===ks[i])lops.push({id:x.id,ten:x.ten,khoi:ks[i]})})}
+  for(var a=0;a<lops.length&&!stop;a++){var L=lops[a];var mons=J(await ajx('?call=edu.so_diem.getMon&nam_hoc='+NH,{lop_id:L.id,iLopId:L.id,lop_hoc_id:L.id,hoc_ky_id:hk}))||[];
+    for(var b=0;b<mons.length&&!stop;b++){var M=mons[b];tst('HK'+hk+': lớp '+L.ten+' ('+(a+1)+'/'+lops.length+'), môn '+M.ten+'…');var h;
+      try{h=await ajx('?load=edu.so_diem.nhap',{winid:'ksdbtk',nam_hoc:NH,iLopId:L.id,iKhoi:L.khoi,iMonHocId:M.id,iHocKyId:hk,thang:0,muc:'',dot_diem_id:0,dot_diem_data:'',dot_id:0,dm_cua_mon_hoc:0,dm_cua_khoi_hoc:0,dm_cua_toi:0},'POST')}catch(e){continue}
+      var inf=hocSoDiem(h);if(pv==='toi'&&!inf.toi)continue;TK.ds.push({lop:L.ten,lopId:L.id,khoi:L.khoi,mon:M.ten,monId:M.id,gv:inf.gv});
+      if(lamGi!=='tk')continue;
+      var tb=(h.match(/<tbody>([\s\S]*?)<\/tbody>/)||[])[1]||'';var d=document.createElement('tbody');d.innerHTML=tb.replace(/<script[\s\S]*?<\/script>/gi,'');
+      [].forEach.call(d.querySelectorAll('tr'),function(tr){var td=tr.children;if(td.length<6)return;var g=function(bb,cc){var sp=tr.querySelector('.input_diem[b="'+bb+'"][c="'+cc+'"]');return sp?txt(sp):''};
+        var tx=[];for(var c=1;c<=Math.max(inf.ntx,1);c++)tx.push(g(2,c));var dtb=td[5+Math.max(inf.ntx,0)+2];
+        TK.rows.push([L.khoi,L.ten,M.ten,inf.gv,txt(td[1]),(txt(td[2])+' '+txt(td[3])).trim(),tx.join(';'),g(3,1),g(4,1),dtb?txt(dtb):''])})}}
+  $('tgo').disabled=$('tmau').disabled=false;$('kstop').style.display='none';return !stop}
+function tkTsv(){return [['Khối','Lớp','Môn','Giáo viên','Mã HS','Họ và tên','ĐĐGtx','ĐĐGgk','ĐĐGck','ĐTBmhk'].join('\t')].concat(TK.rows.map(function(r){return r.map(function(v){return String(v==null?'':v).replace(/[\t\r\n]+/g,' ')}).join('\t')})).join('\n')}
+async function thongKe(){var ok=await quetMon('tk');var n=TK.ds.length;tst((ok?'Xong! ':'Đã dừng. ')+n+' sổ lớp–môn, '+TK.rows.length+' dòng học sinh.'+(n?' Đang mở trang thống kê…':($('tpv').value==='toi'?' Không thấy môn nào thầy cô dạy (chọn Phạm vi “Tất cả môn” nếu cần).':'')));if(n)guiTk()}
+function guiTk(){if(!TK.rows.length){tst('Chưa có dữ liệu. Bấm “Thống kê kết quả” trước.');return}var t=tkTsv(),w=window.open(BASE+'thong-ke-diem.html','_blank');if(!w){tst('Trình duyệt chặn mở cửa sổ mới. Dùng nút “Chép để dán”.');return}var done=false;
+  function on(e){if(e.source!==w||e.data!=='ksdb-ready')return;done=true;w.postMessage({type:'ksdb-tk',tsv:t,nam:NH,hk:$('thk').value},'*');window.removeEventListener('message',on);tst('Đã gửi '+TK.rows.length+' dòng sang trang thống kê.')}
+  window.addEventListener('message',on);setTimeout(function(){if(!done){window.removeEventListener('message',on);tst('Không gửi được. Dùng nút “Chép để dán”.')}},30000)}
+function chepTk(){if(!TK.rows.length){tst('Chưa có dữ liệu.');return}var t='#KQMH '+NH+' '+$('thk').value+'\n'+tkTsv();var ok=function(){tst('Đã chép. Sang trang Thống kê kết quả, bấm “Dán từ vnEdu”.')};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(ok,fb);else fb();function fb(){var a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove();ok()}}
+function napJs(src){return new Promise(function(res,rej){if(window.JSZip)return res();var s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s)})}
+async function taiMau(){var ok=await quetMon('mau');if(!TK.ds.length){tst('Không thấy sổ nào để tải'+($('tpv').value==='toi'?' (không thấy môn thầy cô dạy).':'.'));return}
+  try{await napJs('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js')}catch(e){tst('Không tải được thư viện nén file.');return}
+  var z=new JSZip(),hk=$('thk').value,n=0;$('tmau').disabled=true;
+  for(var i=0;i<TK.ds.length&&!stop;i++){var x=TK.ds[i];tst('Đang tải file mẫu '+x.lop+' – '+x.mon+' ('+(i+1)+'/'+TK.ds.length+')…');
+    var u='?call=edu.so_diem.export&name='+encodeURIComponent(x.lop+'-'+x.mon+'-Học kỳ '+hk+' - Sổ điểm')+'&action=xml&winid=ksdbtk&nam_hoc='+NH+'&iLopId='+x.lopId+'&iKhoi='+x.khoi+'&iMonHocId='+x.monId+'&iHocKyId='+hk+'&thang=0&dot_id=0&my_token='+window.myToken+'&app_nam_hoc='+NH;
+    try{var r=await fetch(u,{credentials:'include'});var b=await r.arrayBuffer();var u8=new Uint8Array(b);if(u8[0]===0xD0||u8[0]===0x50){z.file((x.lop+'_'+x.mon+'_HK'+hk).replace(/[\\\/:*?"<>|]/g,'-')+'.xls',b);n++}}catch(e){}}
+  $('tmau').disabled=false;if(!n){tst('Không tải được file nào.');return}
+  var blob=await z.generateAsync({type:'blob'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='File-mau-nhap-diem_HK'+hk+'_'+n+'-so.zip';document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},3000);
+  tst('Đã tải '+n+' file mẫu (nén zip). Điền điểm rồi nhập lại bằng nút Nhập từ Excel trong Sổ điểm của vnEdu.')}
+$('tgo').onclick=thongKe;$('tsend').onclick=guiTk;$('tcp').onclick=chepTk;$('tmau').onclick=taiMau;
 $('sgo').onclick=layKySoDu;$('ssend').onclick=guiKySo;$('scp').onclick=chepKySo;
 $('kcp').onclick=copy;$('ksend').onclick=send;$('dgo').onclick=layDiem;$('dcp').onclick=chepDiem;$('dsend').onclick=function(){if(!DIEM.length){dst('Chưa lấy điểm. Bấm “Lấy điểm và xếp hạng” trước.');return}guiDiem()};
 $('kgo').onclick=async function(){if(!lc||!wc)return;stop=false;var w1=+$('kt1').value||wc.getValue(),w2=+$('kt2').value||w1;if(w2<w1){var x=w1;w1=w2;w2=x}
