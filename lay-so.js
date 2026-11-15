@@ -1,7 +1,7 @@
 (function(){
 /* Nút "Lấy sổ đầu bài" chạy trên trang vnEdu: chỉ ĐỌC sổ, không sửa gì. */
 var CS=document.currentScript;var BASE=CS&&CS.src?CS.src.split('lay-so.js')[0]:'https://tpk792023.github.io/kiem-tra-so-dau-bai/';
-var VER='2026-11-15b'; /* đổi số này mỗi lần sửa để khung cũ trên trang được thay bằng khung mới */
+var VER='2026-11-15c'; /* đổi số này mỗi lần sửa để khung cũ trên trang được thay bằng khung mới */
 if(window.__ksdbPanel&&document.body.contains(window.__ksdbPanel)){if(window.__ksdbVer===VER){window.__ksdbPanel.style.display='block';return}window.__ksdbPanel.remove()}
 window.__ksdbVer=VER;
 if(typeof Ext==='undefined'){alert('Thầy cô mở trang vnEdu (Sổ đầu bài → Chi tiết sổ đầu bài) rồi mới bấm nút này.');return}
@@ -169,14 +169,16 @@ var TK=window.__ksdbTk=window.__ksdbTk||{rows:[],ds:[]};
 function tst(t){$('tst').textContent=t}
 (capNow==1?[1,2,3,4,5]:[6,7,8,9]).forEach(function(k){var o=document.createElement('option');o.value=k;o.textContent='Khối '+k;$('tkh').appendChild(o)});
 function hocSoDiem(h){var th=(h.match(/<thead>([\s\S]*?)<\/thead>/)||[])[1]||'';var gv=((h.match(/Giáo viên dạy:([\s\S]{0,300}?)<\/td>/)||[])[1]||'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/\+\s*\d+\s*GV được ủy quyền/,'').replace(/\s+/g,' ').trim();
-  var toi=/Bạn là giáo viên bộ môn|Bạn là GVBM|được ủy quyền nhập/i.test(((h.match(/Quyền hạn:([\s\S]{0,200}?)<\/td>/)||[])[1]||''));var ntx=(th.match(/cn='ĐĐGtx'/g)||[]).length;return {gv:gv,toi:toi,ntx:ntx}}
+  var qh=((h.match(/Quyền hạn:([\s\S]{0,200}?)<\/td>/)||[])[1]||'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();
+  /* chỉ tính là "môn tôi dạy" khi câu nói về chính người đăng nhập ("Bạn là GVBM", "Bạn được ủy quyền…"); dòng kiểu "+2 GV được ủy quyền nhập" nói về người khác thì không tính */
+  var toi=/Bạn\s+là\s+(giáo viên bộ môn|GVBM)/i.test(qh)||/Bạn\s+(đã\s+)?được\s+(ủy|uỷ)\s+quyền/i.test(qh);var ntx=(th.match(/cn='ĐĐGtx'/g)||[]).length;return {gv:gv,toi:toi,ntx:ntx,qh:qh}}
 async function quetMon(lamGi){stop=false;var hk=$('thk').value,pv=$('tpv').value,ks=$('tkh').value?[+$('tkh').value]:(capNow==1?[1,2,3,4,5]:[6,7,8,9]);
-  TK.rows=[];TK.ds=[];$('tgo').disabled=$('tmau').disabled=true;$('kstop').style.display='';var lops=[];
+  TK.rows=[];TK.ds=[];TK.boQua=0;$('tgo').disabled=$('tmau').disabled=true;$('kstop').style.display='';var lops=[];
   for(var i=0;i<ks.length;i++){var l=J(await ajx('?call=edu.khoi_hoc.getLopByKhoix&nam_hoc='+NH,{khoi:ks[i]}));(l&&(l.data||l)||[]).forEach(function(x){if(+x.khoi===ks[i])lops.push({id:x.id,ten:x.ten,khoi:ks[i]})})}
   for(var a=0;a<lops.length&&!stop;a++){var L=lops[a];var mons=J(await ajx('?call=edu.so_diem.getMon&nam_hoc='+NH,{lop_id:L.id,iLopId:L.id,lop_hoc_id:L.id,hoc_ky_id:hk}))||[];
     for(var b=0;b<mons.length&&!stop;b++){var M=mons[b];tst('HK'+hk+': lớp '+L.ten+' ('+(a+1)+'/'+lops.length+'), môn '+M.ten+'…');var h;
       try{h=await ajx('?load=edu.so_diem.nhap',{winid:'ksdbtk',nam_hoc:NH,iLopId:L.id,iKhoi:L.khoi,iMonHocId:M.id,iHocKyId:hk,thang:0,muc:'',dot_diem_id:0,dot_diem_data:'',dot_id:0,dm_cua_mon_hoc:0,dm_cua_khoi_hoc:0,dm_cua_toi:0},'POST')}catch(e){continue}
-      var inf=hocSoDiem(h);if(pv==='toi'&&!inf.toi)continue;TK.ds.push({lop:L.ten,lopId:L.id,khoi:L.khoi,mon:M.ten,monId:M.id,gv:inf.gv});
+      var inf=hocSoDiem(h);if(pv==='toi'&&!inf.toi){TK.boQua=(TK.boQua||0)+1;continue}TK.ds.push({lop:L.ten,lopId:L.id,khoi:L.khoi,mon:M.ten,monId:M.id,gv:inf.gv,qh:inf.qh});
       if(lamGi!=='tk')continue;
       var tb=(h.match(/<tbody>([\s\S]*?)<\/tbody>/)||[])[1]||'';var d=document.createElement('tbody');d.innerHTML=tb.replace(/<script[\s\S]*?<\/script>/gi,'');
       [].forEach.call(d.querySelectorAll('tr'),function(tr){var td=tr.children;if(td.length<6)return;var g=function(bb,cc){var sp=tr.querySelector('.input_diem[b="'+bb+'"][c="'+cc+'"]');return sp?txt(sp):''};
@@ -198,8 +200,9 @@ async function taiMau(){var ok=await quetMon('mau');if(!TK.ds.length){tst('Khôn
     var u='?call=edu.so_diem.export&name='+encodeURIComponent(x.lop+'-'+x.mon+'-Học kỳ '+hk+' - Sổ điểm')+'&action=xml&winid=ksdbtk&nam_hoc='+NH+'&iLopId='+x.lopId+'&iKhoi='+x.khoi+'&iMonHocId='+x.monId+'&iHocKyId='+hk+'&thang=0&dot_id=0&my_token='+window.myToken+'&app_nam_hoc='+NH;
     try{var r=await fetch(u,{credentials:'include'});var b=await r.arrayBuffer();var u8=new Uint8Array(b);if(u8[0]===0xD0||u8[0]===0x50){z.file((x.lop+'_'+x.mon+'_HK'+hk).replace(/[\\\/:*?"<>|]/g,'-')+'.xls',b);n++}}catch(e){}}
   $('tmau').disabled=false;if(!n){tst('Không tải được file nào.');return}
+  z.file('Danh-sach-so-da-tai.txt','﻿Lớp\tMôn\tGiáo viên\tQuyền hạn (vnEdu)\r\n'+TK.ds.map(function(x){return [x.lop,x.mon,x.gv,x.qh||''].join('\t')}).join('\r\n'));
   var blob=await z.generateAsync({type:'blob'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='File-mau-nhap-diem_HK'+hk+'_'+n+'-so.zip';document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},3000);
-  tst('Đã tải '+n+' file mẫu (nén zip). Điền điểm rồi nhập lại bằng nút Nhập từ Excel trong Sổ điểm của vnEdu.')}
+  tst('Đã tải '+n+' file mẫu (nén zip)'+($('tpv').value==='toi'&&TK.boQua?', bỏ qua '+TK.boQua+' sổ không phải môn thầy cô dạy':'')+'. Điền điểm rồi nhập lại bằng nút Nhập từ Excel trong Sổ điểm của vnEdu.')}
 $('tgo').onclick=thongKe;$('tsend').onclick=guiTk;$('tcp').onclick=chepTk;$('tmau').onclick=taiMau;
 $('sgo').onclick=layKySoDu;$('ssend').onclick=guiKySo;$('scp').onclick=chepKySo;
 $('kcp').onclick=copy;$('ksend').onclick=send;$('dgo').onclick=layDiem;$('dcp').onclick=chepDiem;$('dsend').onclick=function(){if(!DIEM.length){dst('Chưa lấy điểm. Bấm “Lấy điểm và xếp hạng” trước.');return}guiDiem()};
