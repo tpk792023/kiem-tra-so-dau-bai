@@ -1,7 +1,7 @@
 (function(){
 /* Nút "Lấy sổ đầu bài" chạy trên trang vnEdu: chỉ ĐỌC sổ, không sửa gì. */
 var CS=document.currentScript;var BASE=CS&&CS.src?CS.src.split('lay-so.js')[0]:'https://tpk792023.github.io/kiem-tra-so-dau-bai/';
-var VER='2026-11-15c'; /* đổi số này mỗi lần sửa để khung cũ trên trang được thay bằng khung mới */
+var VER='2026-11-15d'; /* đổi số này mỗi lần sửa để khung cũ trên trang được thay bằng khung mới */
 if(window.__ksdbPanel&&document.body.contains(window.__ksdbPanel)){if(window.__ksdbVer===VER){window.__ksdbPanel.style.display='block';return}window.__ksdbPanel.remove()}
 window.__ksdbVer=VER;
 if(typeof Ext==='undefined'){alert('Thầy cô mở trang vnEdu (Sổ đầu bài → Chi tiết sổ đầu bài) rồi mới bấm nút này.');return}
@@ -193,9 +193,16 @@ function guiTk(){if(!TK.rows.length){tst('Chưa có dữ liệu. Bấm “Thốn
 function chepTk(){if(!TK.rows.length){tst('Chưa có dữ liệu.');return}var t='#KQMH '+NH+' '+$('thk').value+'\n'+tkTsv();var ok=function(){tst('Đã chép. Sang trang Thống kê kết quả, bấm “Dán từ vnEdu”.')};
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(ok,fb);else fb();function fb(){var a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove();ok()}}
 function napJs(src){return new Promise(function(res,rej){if(window.JSZip)return res();var s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s)})}
+/* JSZip riêng của nút: trang vnEdu có thể có JSZip bản cũ (không có generateAsync) hoặc define() kiểu AMD — nạp bản 3.10.1 riêng, trả lại biến cũ cho vnEdu */
+function napZip(){if(window.__ksdbZip)return Promise.resolve(window.__ksdbZip);
+  if(window.JSZip&&window.JSZip.prototype&&window.JSZip.prototype.generateAsync){window.__ksdbZip=window.JSZip;return Promise.resolve(window.JSZip)}
+  return new Promise(function(res,rej){var cu=window.JSZip,df=window.define,ex=window.exports,md=window.module;window.JSZip=undefined;window.define=undefined;window.exports=undefined;window.module=undefined;
+    function tra(){var Z=window.JSZip;window.JSZip=cu;window.define=df;window.exports=ex;window.module=md;return Z}
+    var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+    s.onload=function(){var Z=tra();if(Z&&Z.prototype.generateAsync){window.__ksdbZip=Z;res(Z)}else rej(new Error('JSZip'))};s.onerror=function(){tra();rej(new Error('mạng'))};document.head.appendChild(s)})}
 async function taiMau(){var ok=await quetMon('mau');if(!TK.ds.length){tst('Không thấy sổ nào để tải'+($('tpv').value==='toi'?' (không thấy môn thầy cô dạy).':'.'));return}
-  try{await napJs('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js')}catch(e){tst('Không tải được thư viện nén file.');return}
-  var z=new JSZip(),hk=$('thk').value,n=0;$('tmau').disabled=true;
+  var ZIP;try{ZIP=await napZip()}catch(e){tst('Không tải được thư viện nén file.');return}
+  var z=new ZIP(),hk=$('thk').value,n=0;$('tmau').disabled=true;
   for(var i=0;i<TK.ds.length&&!stop;i++){var x=TK.ds[i];tst('Đang tải file mẫu '+x.lop+' – '+x.mon+' ('+(i+1)+'/'+TK.ds.length+')…');
     var u='?call=edu.so_diem.export&name='+encodeURIComponent(x.lop+'-'+x.mon+'-Học kỳ '+hk+' - Sổ điểm')+'&action=xml&winid=ksdbtk&nam_hoc='+NH+'&iLopId='+x.lopId+'&iKhoi='+x.khoi+'&iMonHocId='+x.monId+'&iHocKyId='+hk+'&thang=0&dot_id=0&my_token='+window.myToken+'&app_nam_hoc='+NH;
     try{var r=await fetch(u,{credentials:'include'});var b=await r.arrayBuffer();var u8=new Uint8Array(b);if(u8[0]===0xD0||u8[0]===0x50){z.file((x.lop+'_'+x.mon+'_HK'+hk).replace(/[\\\/:*?"<>|]/g,'-')+'.xls',b);n++}}catch(e){}}
@@ -203,7 +210,7 @@ async function taiMau(){var ok=await quetMon('mau');if(!TK.ds.length){tst('Khôn
   z.file('Danh-sach-so-da-tai.txt','﻿Lớp\tMôn\tGiáo viên\tQuyền hạn (vnEdu)\r\n'+TK.ds.map(function(x){return [x.lop,x.mon,x.gv,x.qh||''].join('\t')}).join('\r\n'));
   var blob=await z.generateAsync({type:'blob'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='File-mau-nhap-diem_HK'+hk+'_'+n+'-so.zip';document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},3000);
   tst('Đã tải '+n+' file mẫu (nén zip)'+($('tpv').value==='toi'&&TK.boQua?', bỏ qua '+TK.boQua+' sổ không phải môn thầy cô dạy':'')+'. Điền điểm rồi nhập lại bằng nút Nhập từ Excel trong Sổ điểm của vnEdu.')}
-$('tgo').onclick=thongKe;$('tsend').onclick=guiTk;$('tcp').onclick=chepTk;$('tmau').onclick=taiMau;
+$('tgo').onclick=thongKe;$('tsend').onclick=guiTk;$('tcp').onclick=chepTk;$('tmau').onclick=function(){taiMau().catch(function(e){$('tmau').disabled=false;$('tgo').disabled=false;tst('Lỗi khi tạo file zip: '+((e&&e.message)||e)+'. Chụp dòng này gửi người làm phần mềm.')})};
 $('sgo').onclick=layKySoDu;$('ssend').onclick=guiKySo;$('scp').onclick=chepKySo;
 $('kcp').onclick=copy;$('ksend').onclick=send;$('dgo').onclick=layDiem;$('dcp').onclick=chepDiem;$('dsend').onclick=function(){if(!DIEM.length){dst('Chưa lấy điểm. Bấm “Lấy điểm và xếp hạng” trước.');return}guiDiem()};
 $('kgo').onclick=async function(){if(!lc||!wc)return;stop=false;var w1=+$('kt1').value||wc.getValue(),w2=+$('kt2').value||w1;if(w2<w1){var x=w1;w1=w2;w2=x}
